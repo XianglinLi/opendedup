@@ -5,6 +5,7 @@
 
 There are plenty of options to create a file system and to see them run "./mkfs.sdfs --help".
 
+
 ==Chunk Size:==
 
 The most notable option is --io-chunk-size. The option --io-chunk-size sets the size of chunks that are hashed and can only be changed before the file system is mounted to for the first time. The default setting is 128k but can be set as low as 4k. The size of chucks determine the efficient at which files will be deduplicated at the cost of RAM. As an example a 4k chunk size is perfect for Virtual Machines (VMDKs) because it matches the cluster size of most guest os file systems but can cost as much as 8GB of RAM per 1TB to store. In contrast setting the chunk size to 128k is perfect of archived data, such as backups, and will allow you to store as much as 32TB of data with the same 8GB of memory.
@@ -54,3 +55,12 @@ The mount.sdfs shell script currently allocates up to 2GB of RAM for the SDFS fi
 To calculate how much RAM you will need for a specific volume divide the volume size (in bytes) by the chunk size (in bytes) and multiply that times 33.
 
               Memory Requirements Calculation: *(volume size/chunk size){{{*}}}33*
+
+
+==Data Removal:==
+	
+SDFS uses a batch process to remove unused blocks of hashed data.This process is used because the file-system is decoupled from the back end storage (ChunkStore) where the actual data is held. As hashed data becomes stale they are removed from the chunk store. The process for determining and removing stale chunks is as follows.
+
+  # SDFS file-system informs the ChunkStore what chunks are currently in use. This happens when chunks are first created and then every 4 hours on the hour after that.
+  #The Chunk Store checks for data that has not been claimed, in the last two days, by the SDFS file system every evening at 11pm.
+  #The chunks that have not been claimed in the last two days are put into a pool and overwritten as new data is written to the ChunkStore.
