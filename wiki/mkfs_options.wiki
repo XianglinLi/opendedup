@@ -45,10 +45,10 @@ usage: mkfs.sdfs --volume-name=sdfs --volume-capacity=100GB
     --io-log <PATH>                            the file path to location for the io log.
                                                Defaults to:
                                                --base-path + /io.log
-    --io-max-file-write-buffers <NUMBER>       The number of memory buffers to have available for reading and writing per
+    --io-max-file-write-buffers <Size in MB>       The size of the memory buffers to have available for reading and writing per
                                                file. Each buffer in the size of io-chunk-size.
                                                Defaults to:
-                                               50
+                                               8 MB
     --io-max-open-files <NUMBER>               The maximum number of files that can be open at any one time. If the number of
                                                files is exceeded the least recently used will be closed.
                                                Defaults to:
