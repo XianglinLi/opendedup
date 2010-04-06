@@ -1,4 +1,4 @@
-#labels Featured,Phase-Deploy
+#labels Deprecated,Phase-Deploy
 #Mound Command Line options for mount.sdfs
 
 = Command Line Options =
