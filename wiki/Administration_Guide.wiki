@@ -1,4 +1,4 @@
-#labels Featured,Phase-Implementation,Phase-Deploy
+#labels Deprecated,Phase-Implementation,Phase-Deploy
 #Administration Guide for SDFS file system optimization
 
 There are plenty of options to create a file system and to see them run "./mkfs.sdfs --help" or take a look at them [http://code.google.com/p/opendedup/wiki/mkfs_options here].
