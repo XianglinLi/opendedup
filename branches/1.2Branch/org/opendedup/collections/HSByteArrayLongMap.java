@@ -365,6 +365,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 			}
 		}
 
+		@SuppressWarnings("unused")
 		private void setKeyTime(int pos) throws IOException {
 			this.keylock.lock();
 			try {
@@ -1216,7 +1217,6 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 
 		public long removeNextOldRecord(long time) throws IOException {
 			while (iterpos < capacity) {
-				long val = -1;
 				this.lock();
 				try {
 					if (this.getHashVal(iterpos) != HSByteArrayLongMap._NULL_HASH_DELTA) {
