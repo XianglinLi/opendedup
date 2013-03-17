@@ -332,9 +332,11 @@ public class MetaDataDedupFile implements java.io.Externalizable {
 	private ReentrantLock getDFLock = new ReentrantLock();
 
 	public DedupFile getDedupFile() throws IOException {
-		try {
-			getDFLock.lock();
+		
 			if (this.dfGuid == null) {
+				getDFLock.lock();
+				try {
+					if (this.dfGuid == null) {
 				DedupFile df = DedupFileStore.getDedupFile(this);
 				this.dfGuid = df.getGUID();
 				SDFSLogger.getLog().debug(
@@ -342,12 +344,15 @@ public class MetaDataDedupFile implements java.io.Externalizable {
 								+ this.getPath() + " to " + this.dfGuid);
 				this.sync();
 				return df;
+					}else {
+						return DedupFileStore.getDedupFile(this);
+					}
+				}finally {
+					getDFLock.unlock();
+				}
 			} else {
 				return DedupFileStore.getDedupFile(this);
 			}
-		} finally {
-			getDFLock.unlock();
-		}
 	}
 
 	/**
@@ -644,6 +649,8 @@ public class MetaDataDedupFile implements java.io.Externalizable {
 	 * @return time when file was last modified
 	 */
 	public long lastModified() {
+		if(this.dfGuid != null)
+			return lastModified;
 		if (this.isDirectory())
 			return new File(this.path).lastModified();
 		return lastModified;

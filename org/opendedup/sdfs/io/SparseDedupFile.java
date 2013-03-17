@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -15,6 +14,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 import org.apache.commons.collections.map.AbstractLinkedMap;
 import org.apache.commons.collections.map.LRUMap;
+
+
 import org.opendedup.collections.HashtableFullException;
 import org.opendedup.collections.LargeLongByteArrayMap;
 import org.opendedup.collections.LongByteArrayMap;
@@ -27,11 +28,10 @@ import org.opendedup.sdfs.servers.HCServiceProxy;
 import org.opendedup.util.DeleteDir;
 import org.opendedup.util.ThreadPool;
 import org.opendedup.util.VMDKParser;
-
 /*
- import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
- import com.googlecode.concurrentlinkedhashmap.EvictionListener;
- import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.EvictionListener;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
  */
 public class SparseDedupFile implements DedupFile {
 
@@ -58,6 +58,27 @@ public class SparseDedupFile implements DedupFile {
 	private int maxWriteBuffers = ((Main.maxWriteBuffers * 1024 * 1024) / Main.CHUNK_LENGTH) + 1;
 	private transient final ConcurrentHashMap<Long, WritableCacheBuffer> flushingBuffers = new ConcurrentHashMap<Long, WritableCacheBuffer>(
 			1024, .75f);
+	/*
+	private final transient ConcurrentLinkedHashMap<Long, WritableCacheBuffer> writeBuffers = new Builder<Long, WritableCacheBuffer>()
+			.concurrencyLevel(Main.writeThreads).maximumWeightedCapacity(maxWriteBuffers + 1)
+			.listener(new EvictionListener<Long, WritableCacheBuffer>() {
+				// This method is called just after a new entry has been
+				// added
+				@Override
+				public void onEviction(Long key, WritableCacheBuffer writeBuffer) {
+					if (writeBuffer != null) {
+						try {
+							writeBuffer.flush();
+						} catch (Exception e) {
+							SDFSLogger.getLog().debug(
+									"while closing position "
+											+ writeBuffer.getFilePosition(), e);
+						}
+					}
+				}
+			}).build();
+			*/
+	
 	@SuppressWarnings("serial")
 	private final transient LRUMap writeBuffers = new LRUMap(
 			maxWriteBuffers + 1, false) {
@@ -80,7 +101,6 @@ public class SparseDedupFile implements DedupFile {
 			return false;
 		}
 	};
-
 	private boolean closed = true;
 	static {
 		File f = new File(Main.dedupDBStore);
@@ -158,20 +178,18 @@ public class SparseDedupFile implements DedupFile {
 	}
 
 	public void putBufferIntoFlush(WritableCacheBuffer wbuffer) {
-		WriteLock l = this.writeBufferLock.writeLock();
 		try {
-			l.lock();
 			this.writeBuffers.remove(wbuffer.getFilePosition());
 			this.flushingBuffers.put(wbuffer.getFilePosition(), wbuffer);
 		} finally {
-			l.unlock();
+			
 		}
 	}
 
-	protected void putBufferIntoWrite(WritableCacheBuffer wbuffer) {
+	public void putBufferIntoWrite(WritableCacheBuffer wbuffer) {
 		WriteLock l = this.writeBufferLock.writeLock();
+		l.lock();
 		try {
-			l.lock();
 			this.flushingBuffers.remove(wbuffer.getFilePosition());
 			this.writeBuffers.put(wbuffer.getFilePosition(), wbuffer);
 		} finally {
@@ -286,9 +304,7 @@ public class SparseDedupFile implements DedupFile {
 	@Override
 	public int writeCache() throws IOException, HashtableFullException {
 		Object[] buffers = null;
-		ReadLock l = this.writeBufferLock.readLock();
 		try {
-			l.lock();
 			SDFSLogger.getLog().debug(
 					"Flushing Cache of for " + mf.getPath() + " of size "
 							+ this.writeBuffers.size());
@@ -298,28 +314,30 @@ public class SparseDedupFile implements DedupFile {
 				return 0;
 			}
 		} finally {
-			l.unlock();
+			
 		}
 		int z = 0;
+		
 		for (int i = 0; i < buffers.length; i++) {
 			WritableCacheBuffer buf = (WritableCacheBuffer) buffers[i];
+			
 			try {
 				buf.flush();
 			} catch (BufferClosedException e) {
 				SDFSLogger.getLog().debug(
 						"while closing position " + buf.getFilePosition(), e);
+			}finally {
+				
 			}
 			z++;
 		}
-		l = this.writeBufferLock.readLock();
 		try {
-			l.lock();
 			SDFSLogger.getLog().debug(
 					"Flushing Cache of for " + mf.getPath() + " of size "
 							+ this.writeBuffers.size());
 			buffers = this.flushingBuffers.values().toArray();
 		} finally {
-			l.unlock();
+			
 		}
 		z = 0;
 		for (int i = 0; i < buffers.length; i++) {
@@ -564,10 +582,14 @@ public class SparseDedupFile implements DedupFile {
 			}
 
 			if (Main.safeSync || force) {
-
-				this.bdb.sync();
+				ReadLock l = this.writeBufferLock.readLock();
+				l.lock();
+				try {
 				this.writeCache();
-
+				this.bdb.sync();
+				}finally {
+					l.unlock();
+				}
 			} else {
 				try {
 
@@ -724,16 +746,14 @@ public class SparseDedupFile implements DedupFile {
 	@Override
 	public void forceClose() {
 		this.syncLock.lock();
-		WriteLock l = this.writeBufferLock.writeLock();
-		l.lock();
 		this.initLock.lock();
 		this.channelLock.lock();
-
+		WriteLock l = this.writeBufferLock.writeLock();
+		l.lock();
 		try {
 			if (!this.closed) {
 				SDFSLogger.getLog().debug("Closing [" + mf.getPath() + "]");
 				if (Main.safeClose) {
-
 					try {
 						ArrayList<DedupFileChannel> al = new ArrayList<DedupFileChannel>();
 						for (int i = 0; i < this.buffers.size(); i++) {
@@ -790,8 +810,8 @@ public class SparseDedupFile implements DedupFile {
 			this.closed = true;
 			this.channelLock.unlock();
 			this.initLock.unlock();
-			l.unlock();
 			this.syncLock.unlock();
+			l.unlock();
 		}
 	}
 

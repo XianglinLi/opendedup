@@ -286,7 +286,7 @@ public class WritableCacheBuffer extends DedupChunk {
 				df.putBufferIntoWrite(this);
 			}
 		} catch (Exception e) {
-			SDFSLogger.getLog().fatal("Error while opening");
+			SDFSLogger.getLog().fatal("Error while opening",e);
 			throw new IllegalArgumentException("error");
 		} finally {
 			this.lock.unlock();
@@ -313,6 +313,7 @@ public class WritableCacheBuffer extends DedupChunk {
 			SparseDedupFile.pool.execute(this);
 		} finally {
 			this.lock.unlock();
+			
 		}
 	}
 
