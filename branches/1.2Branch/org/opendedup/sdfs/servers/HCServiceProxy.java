@@ -2,7 +2,6 @@ package org.opendedup.sdfs.servers;
 
 import java.io.IOException;
 
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -26,15 +25,27 @@ public class HCServiceProxy {
 	public static HashMap<String, HashClientPool> dseServers = new HashMap<String, HashClientPool>();
 	public static HashMap<String, HashClientPool> dseRoutes = new HashMap<String, HashClientPool>();
 	private static HashChunkServiceInterface hcService = null;
-	private static int cacheLenth = 10485760 / Main.CHUNK_LENGTH;
+	private static int cacheLength = 104857600 / Main.CHUNK_LENGTH;
 	private static ConcurrentLinkedHashMap<String, ByteCache> readBuffers = new Builder<String, ByteCache>()
-			.concurrencyLevel(Main.writeThreads).initialCapacity(cacheLenth)
-			.maximumWeightedCapacity(cacheLenth)
+			.concurrencyLevel(Main.writeThreads).initialCapacity(cacheLength)
+			.maximumWeightedCapacity(cacheLength + 1)
 			.listener(new EvictionListener<String, ByteCache>() {
 				// This method is called just after a new entry has been
 				// added
 				@Override
 				public void onEviction(String key, ByteCache writeBuffer) {
+				}
+			}
+
+			).build();
+	private static ConcurrentLinkedHashMap<byte [], byte []> localReadBuffers = new Builder<byte[], byte[]>()
+			.concurrencyLevel(Main.writeThreads).initialCapacity(cacheLength)
+			.maximumWeightedCapacity(cacheLength + 1)
+			.listener(new EvictionListener<byte[], byte []>() {
+				// This method is called just after a new entry has been
+				// added
+				@Override
+				public void onEviction(byte[] key, byte [] writeBuffer) {
 				}
 			}
 
@@ -46,30 +57,31 @@ public class HCServiceProxy {
 	private static ReentrantLock readlock = new ReentrantLock();
 
 	// private static boolean initialized = false;
-	
+
 	static {
 		hcService = new HashChunkService();
 		try {
-		hcService.init();
-		if (!Main.closedGracefully) {
-			hcService.runConsistancyCheck();
-		}
-		}catch(Exception e) {
-			SDFSLogger.getLog().error("Unable to initialize HashChunkService ",e);
+			hcService.init();
+			if (!Main.closedGracefully) {
+				hcService.runConsistancyCheck();
+			}
+		} catch (Exception e) {
+			SDFSLogger.getLog().error("Unable to initialize HashChunkService ",
+					e);
 			e.printStackTrace();
 			System.exit(-1);
 		}
 	}
-	
+
 	public static void processHashClaims(SDFSEvent evt) throws IOException {
 		hcService.processHashClaims(evt);
 	}
-	
+
 	public static boolean hashExists(byte[] hash, short hops)
 			throws IOException, HashtableFullException {
 		return hcService.hashExists(hash, hops);
 	}
-	
+
 	public static HashChunk fetchHashChunk(byte[] hash) throws IOException {
 		return hcService.fetchChunk(hash);
 	}
@@ -86,7 +98,6 @@ public class HCServiceProxy {
 	public static synchronized void init() {
 	}
 
-
 	public static long getSize() {
 		if (Main.chunkStoreLocal) {
 			return HCServiceProxy.hcService.getSize();
@@ -102,7 +113,7 @@ public class HCServiceProxy {
 			return -1;
 		}
 	}
-	
+
 	public static long getFreeBlocks() {
 		if (Main.chunkStoreLocal) {
 			return HCServiceProxy.hcService.getFreeBlocks();
@@ -110,9 +121,9 @@ public class HCServiceProxy {
 			return -1;
 		}
 	}
-	
+
 	public static AbstractChunkStore getChunkStore() {
-		
+
 		return hcService.getChuckStore();
 	}
 
@@ -252,9 +263,18 @@ public class HCServiceProxy {
 	}
 
 	public static byte[] fetchChunk(byte[] hash) throws IOException {
+		
 		if (Main.chunkStoreLocal) {
-			HashChunk hc = HCServiceProxy.hcService.fetchChunk(hash);
-			return hc.getData();
+			byte [] data = localReadBuffers.get(hash);
+			if(data == null || data.length == 0) {
+				HashChunk hc = HCServiceProxy.hcService.fetchChunk(hash);
+				data = hc.getData();
+				localReadBuffers.put(hash, data);
+			}
+				// ByteCache _b = new ByteCache(data);
+				// readBuffers.put(hashStr, _b);
+				return data;
+				
 		} else {
 			String hashStr = StringUtils.getHexString(hash);
 			boolean reading = false;

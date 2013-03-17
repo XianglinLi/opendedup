@@ -65,7 +65,8 @@ public class MetaFileStore {
 	 * @param mf
 	 */
 	private static void cacheMF(MetaDataDedupFile mf) {
-		pathMap.put(mf.getPath(), mf);
+		if(!mf.isDirectory())
+			pathMap.put(mf.getPath(), mf);
 	}
 
 	public static void rename(String src, String dst, MetaDataDedupFile mf) {
@@ -99,10 +100,6 @@ public class MetaFileStore {
 	private static ReentrantLock getMFLock = new ReentrantLock();
 
 	public static MetaDataDedupFile getMF(File f) {
-
-		if (f.isDirectory()) {
-			return MetaDataDedupFile.getFile(f.getPath());
-		}
 		MetaDataDedupFile mf = null;
 
 		mf = pathMap.get(f.getPath());
