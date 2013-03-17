@@ -30,6 +30,7 @@ public class Volume implements java.io.Serializable {
 	static long tbc = 1099511627776L;
 	static long gbc = 1024 * 1024 * 1024;
 	static int mbc = 1024 * 1024;
+	@SuppressWarnings("unused")
 	private static final long minFree = 2147483648L; //Leave at least 2 GB Free on the drive.
 	private static final long serialVersionUID = 5505952237500542215L;
 	private final ReentrantLock updateLock = new ReentrantLock();
