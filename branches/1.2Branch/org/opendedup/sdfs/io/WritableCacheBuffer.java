@@ -336,11 +336,7 @@ public class WritableCacheBuffer extends DedupChunk {
 						this.getFilePosition() + " already closed");
 			} else {
 				this.df.writeCache(this);
-				WritableCacheBuffer _wb = this.df.flushingBuffers.remove(this
-						.getFilePosition());
-				if (_wb == null) {
-					
-				}
+				df.removeFromFlush(this.getFilePosition());
 				this.closed = true;
 				this.flushing = false;
 			}

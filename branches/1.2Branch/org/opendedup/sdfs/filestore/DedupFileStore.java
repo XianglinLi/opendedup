@@ -7,6 +7,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.opendedup.logging.SDFSLogger;
 import org.opendedup.sdfs.Main;
 import org.opendedup.sdfs.io.DedupFile;
+import org.opendedup.sdfs.io.FileClosedException;
 import org.opendedup.sdfs.io.MetaDataDedupFile;
 import org.opendedup.sdfs.io.SparseDedupFile;
 
@@ -200,6 +201,18 @@ public class DedupFileStore {
 			openFileMonitor.close();
 		Object[] dfs = getArray();
 		SDFSLogger.getLog().info("closing openfiles of size " + dfs.length);
+		for (int i = 0; i < dfs.length; i++) {
+			DedupFile df = (DedupFile) dfs[i];
+			try {
+				df.sync(true);
+			} catch (FileClosedException e) {
+				
+			} catch (IOException e) {
+				
+			}
+			SDFSLogger.getLog().debug("Closed " + df.getMetaFile().getPath());
+		}
+		SparseDedupFile.flushThreadPool();
 		for (int i = 0; i < dfs.length; i++) {
 			DedupFile df = (DedupFile) dfs[i];
 			df.forceClose();
