@@ -107,13 +107,8 @@ public class SparseDedupFile implements DedupFile {
 	}
 
 	public void removeFromFlush(long pos) {
-		WriteLock l = this.writeBufferLock.writeLock();
-		l.lock();
-		try {
+		
 			this.flushingBuffers.remove(pos);
-		} finally {
-			l.unlock();
-		}
 	}
 
 	/*
