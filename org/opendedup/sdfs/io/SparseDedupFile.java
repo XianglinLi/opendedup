@@ -2,7 +2,6 @@ package org.opendedup.sdfs.io;
 
 import java.io.File;
 
-
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -56,7 +55,7 @@ public class SparseDedupFile implements DedupFile {
 	private final ReentrantLock syncLock = new ReentrantLock();
 	private LargeLongByteArrayMap chunkStore = null;
 	private int maxWriteBuffers = ((Main.maxWriteBuffers * 1024 * 1024) / Main.CHUNK_LENGTH) + 1;
-	protected transient final HashMap<Long, WritableCacheBuffer> flushingBuffers = new HashMap<Long, WritableCacheBuffer>(
+	private transient final HashMap<Long, WritableCacheBuffer> flushingBuffers = new HashMap<Long, WritableCacheBuffer>(
 			1024, .75f);
 	@SuppressWarnings("serial")
 	private final transient LRUMap writeBuffers = new LRUMap(
@@ -88,6 +87,10 @@ public class SparseDedupFile implements DedupFile {
 			f.mkdirs();
 	}
 
+	public static synchronized void flushThreadPool() {
+		pool.flush();
+	}
+
 	public SparseDedupFile(MetaDataDedupFile mf) throws IOException {
 		// SDFSLogger.getLog().info("Using LRU Max WriteBuffers=" +
 		// this.maxWriteBuffers);
@@ -100,6 +103,16 @@ public class SparseDedupFile implements DedupFile {
 			this.GUID = UUID.randomUUID().toString();
 		} else {
 			this.GUID = mf.getDfGuid();
+		}
+	}
+
+	public void removeFromFlush(long pos) {
+		WriteLock l = this.writeBufferLock.writeLock();
+		l.lock();
+		try {
+			this.flushingBuffers.remove(pos);
+		} finally {
+			l.unlock();
 		}
 	}
 
@@ -119,7 +132,7 @@ public class SparseDedupFile implements DedupFile {
 		try {
 			ch = this.getChannel(-1);
 			this.writeCache();
-			this.sync();
+			this.sync(true);
 			_df = new SparseDedupFile(snapmf);
 			l.lock();
 			File _directory = new File(Main.dedupDBStore + File.separator
@@ -187,7 +200,7 @@ public class SparseDedupFile implements DedupFile {
 		try {
 			ch = this.getChannel(-1);
 			this.writeCache();
-			this.sync();
+			this.sync(true);
 			l.lock();
 			bdb.copy(dest.getPath() + File.separator + this.GUID + ".map");
 			chunkStore.copy(dest.getPath() + File.separator + this.GUID
@@ -305,6 +318,7 @@ public class SparseDedupFile implements DedupFile {
 		}
 		l = this.writeBufferLock.readLock();
 		try {
+			l.lock();
 			SDFSLogger.getLog().debug(
 					"Flushing Cache of for " + mf.getPath() + " of size "
 							+ this.writeBuffers.size());
@@ -497,12 +511,11 @@ public class SparseDedupFile implements DedupFile {
 			throw new FileClosedException("file already closed");
 		}
 		ReadLock l = this.writeBufferLock.readLock();
-		WritableCacheBuffer writeBuffer =  null;
+		WritableCacheBuffer writeBuffer = null;
 		try {
 			long chunkPos = this.getChuckPosition(position);
 			l.lock();
-			writeBuffer = (WritableCacheBuffer) this.writeBuffers
-					.get(chunkPos);
+			writeBuffer = (WritableCacheBuffer) this.writeBuffers.get(chunkPos);
 			if (writeBuffer == null) {
 				writeBuffer = this.flushingBuffers.get(chunkPos);
 
@@ -514,9 +527,9 @@ public class SparseDedupFile implements DedupFile {
 			l.unlock();
 
 		}
-			writeBuffer.open();
-			return writeBuffer;
-		
+		writeBuffer.open();
+		return writeBuffer;
+
 	}
 
 	/*
@@ -545,8 +558,9 @@ public class SparseDedupFile implements DedupFile {
 	 * 
 	 * @see com.annesam.sdfs.io.AbstractDedupFile#sync()
 	 */
+
 	@Override
-	public void sync() throws FileClosedException, IOException {
+	public void sync(boolean force) throws FileClosedException, IOException {
 		this.syncLock.lock();
 		try {
 			if (this.closed) {
@@ -554,33 +568,14 @@ public class SparseDedupFile implements DedupFile {
 
 			}
 
-			if (Main.safeSync) {
+			if (Main.safeSync || force) {
 
 				this.bdb.sync();
-				Object[] buffers = null;
-				SDFSLogger.getLog().debug(
-						"Flushing Cache of for " + mf.getPath() + " of size "
-								+ this.writeBuffers.size());
-				ReadLock l = this.writeBufferLock.readLock();
-				l.lock();
-				try {
-					buffers = this.writeBuffers.values().toArray();
-				}finally {
-					l.unlock();
-				}
-
-				for (int i = 0; i < buffers.length; i++) {
-					WritableCacheBuffer buf = (WritableCacheBuffer) buffers[i];
-					try {
-						buf.sync();
-					} catch (IOException e) {
-
-					}
-				}
+				this.writeCache();
 
 			} else {
 				try {
-					this.writeCache();
+
 					/*
 					 * Object[] buffers = null; this.writeBufferLock.lock(); try
 					 * { SDFSLogger.getLog().debug( "Flushing Cache for " +
@@ -738,7 +733,7 @@ public class SparseDedupFile implements DedupFile {
 		l.lock();
 		this.initLock.lock();
 		this.channelLock.lock();
-		
+
 		try {
 			if (!this.closed) {
 				SDFSLogger.getLog().debug("Closing [" + mf.getPath() + "]");
@@ -767,6 +762,7 @@ public class SparseDedupFile implements DedupFile {
 				try {
 					int nwb = this.writeCache();
 					SDFSLogger.getLog().debug("Flushed " + nwb + " buffers");
+
 				} catch (Exception e) {
 					SDFSLogger.getLog().error(
 							"unable to flush " + this.databasePath, e);

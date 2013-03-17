@@ -60,6 +60,8 @@ public class OpenFileMonitor implements Runnable {
 							try {
 								if (df != null) {
 									DedupFileStore.getDedupFile(
+											df.getMetaFile()).sync(true);
+									DedupFileStore.getDedupFile(
 											df.getMetaFile()).forceClose();
 									SDFSLogger.getLog().debug("Closing [" +df.getMetaFile().getPath() + "] because its stale");
 								}
@@ -72,7 +74,7 @@ public class OpenFileMonitor implements Runnable {
 						} else {
 							try {
 								DedupFileStore.getDedupFile(df.getMetaFile())
-										.sync();
+										.sync(true);
 								DedupFileStore.getDedupFile(df.getMetaFile())
 										.getMetaFile().sync();
 							} catch (Exception e) {

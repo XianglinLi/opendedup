@@ -161,7 +161,7 @@ public class DedupFileChannel {
 	public void force(boolean metaData) throws IOException, FileClosedException {
 		// FixMe Does not persist chunks. This may be an issue.
 		try {
-			df.sync();
+			df.sync(false);
 		} catch (FileClosedException e) {
 			SDFSLogger.getLog().warn(
 					mf.getPath() + " is closed but still writing");
@@ -359,7 +359,7 @@ public class DedupFileChannel {
 					if (this.writtenTo && Main.safeSync) {
 						df.writeCache();
 						mf.sync();
-						df.sync();
+						df.sync(false);
 
 					}
 				} catch (Exception e) {
@@ -384,7 +384,7 @@ public class DedupFileChannel {
 				if (this.writtenTo && Main.safeSync) {
 					df.writeCache();
 					mf.sync();
-					df.sync();
+					df.sync(false);
 
 				}
 			} catch (Exception e) {

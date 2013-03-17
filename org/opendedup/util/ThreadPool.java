@@ -40,8 +40,18 @@ public class ThreadPool {
 			SDFSLogger.getLog().warn("thread interrupted", e);
 		}
 	}
+	
+	public synchronized void flush() {
+		while(!this.taskQueue.isEmpty()) {
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				break;
+			}
+		}
+	}
 
-	public synchronized void stop() {
+	public synchronized void stops() {
 		this.isStopped = true;
 		for (PoolThread thread : threads) {
 			thread.exit();

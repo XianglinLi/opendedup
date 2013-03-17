@@ -113,7 +113,7 @@ public interface DedupFile {
 	 * 
 	 * @throws IOException
 	 */
-	public abstract void sync() throws FileClosedException, IOException;
+	public abstract void sync(boolean force) throws FileClosedException, IOException;
 
 	/**
 	 * Creates a DedupFileChannel for writing data to this DedupFile
