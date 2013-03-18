@@ -182,9 +182,6 @@ public class Volume implements java.io.Serializable {
 	}
 	
 	public boolean isFull() {
-		return
-				false;
-		/*
 		long avail = pathF.getUsableSpace();
 		if(avail < minFree) {
 			SDFSLogger.getLog().warn("Drive is almost full space left is [" + avail + "]");
@@ -196,7 +193,6 @@ public class Volume implements java.io.Serializable {
 		else {
 			return (this.currentSize > this.absoluteLength);
 		}
-	*/
 	}
 
 	public void setPath(String path) {

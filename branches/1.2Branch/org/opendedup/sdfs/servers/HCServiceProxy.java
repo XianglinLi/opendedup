@@ -25,7 +25,7 @@ public class HCServiceProxy {
 	public static HashMap<String, HashClientPool> dseServers = new HashMap<String, HashClientPool>();
 	public static HashMap<String, HashClientPool> dseRoutes = new HashMap<String, HashClientPool>();
 	private static HashChunkServiceInterface hcService = null;
-	private static int cacheLength = 104857600 / Main.CHUNK_LENGTH;
+	private static int cacheLength = 10485760 / Main.CHUNK_LENGTH;
 	private static ConcurrentLinkedHashMap<String, ByteCache> readBuffers = new Builder<String, ByteCache>()
 			.concurrencyLevel(Main.writeThreads).initialCapacity(cacheLength)
 			.maximumWeightedCapacity(cacheLength + 1)
@@ -38,14 +38,14 @@ public class HCServiceProxy {
 			}
 
 			).build();
-	private static ConcurrentLinkedHashMap<byte [], byte []> localReadBuffers = new Builder<byte[], byte[]>()
+	private static ConcurrentLinkedHashMap<String, ByteCache> localReadBuffers = new Builder<String, ByteCache>()
 			.concurrencyLevel(Main.writeThreads).initialCapacity(cacheLength)
 			.maximumWeightedCapacity(cacheLength + 1)
-			.listener(new EvictionListener<byte[], byte []>() {
+			.listener(new EvictionListener<String, ByteCache>() {
 				// This method is called just after a new entry has been
 				// added
 				@Override
-				public void onEviction(byte[] key, byte [] writeBuffer) {
+				public void onEviction(String key, ByteCache writeBuffer) {
 				}
 			}
 
@@ -265,14 +265,18 @@ public class HCServiceProxy {
 	public static byte[] fetchChunk(byte[] hash) throws IOException {
 		
 		if (Main.chunkStoreLocal) {
-			byte [] data = localReadBuffers.get(hash);
-			if(data == null || data.length == 0) {
+			/*
+			ByteCache cache = localReadBuffers.get(hashStr);
+			byte [] data = null;
+			if(cache == null ) {
 				HashChunk hc = HCServiceProxy.hcService.fetchChunk(hash);
 				data = hc.getData();
-				localReadBuffers.put(hash, data);
-			}
-				// ByteCache _b = new ByteCache(data);
-				// readBuffers.put(hashStr, _b);
+				localReadBuffers.putIfAbsent(hashStr, new ByteCache(data));
+			}else {
+				data = cache.getCache();
+			}*/
+			HashChunk hc = HCServiceProxy.hcService.fetchChunk(hash);
+			byte [] data = hc.getData();
 				return data;
 				
 		} else {

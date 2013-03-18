@@ -331,25 +331,7 @@ public class SparseDedupFile implements DedupFile {
 			}
 			z++;
 		}
-		try {
-			SDFSLogger.getLog().debug(
-					"Flushing Cache of for " + mf.getPath() + " of size "
-							+ this.writeBuffers.size());
-			buffers = this.flushingBuffers.values().toArray();
-		} finally {
-			
-		}
-		z = 0;
-		for (int i = 0; i < buffers.length; i++) {
-			WritableCacheBuffer buf = (WritableCacheBuffer) buffers[i];
-			try {
-				buf.close();
-			} catch (Exception e) {
-				SDFSLogger.getLog().debug(
-						"while closing position " + buf.getFilePosition(), e);
-			}
-			z++;
-		}
+		
 		return z;
 	}
 
@@ -582,7 +564,7 @@ public class SparseDedupFile implements DedupFile {
 			}
 
 			if (Main.safeSync || force) {
-				ReadLock l = this.writeBufferLock.readLock();
+				WriteLock l = this.writeBufferLock.writeLock();
 				l.lock();
 				try {
 				this.writeCache();
@@ -776,6 +758,19 @@ public class SparseDedupFile implements DedupFile {
 				}
 				try {
 					int nwb = this.writeCache();
+					Object [] buffers = this.flushingBuffers.values().toArray();
+					
+					nwb = 0;
+					for (int i = 0; i < buffers.length; i++) {
+						WritableCacheBuffer buf = (WritableCacheBuffer) buffers[i];
+						try {
+							buf.close();
+						} catch (Exception e) {
+							SDFSLogger.getLog().debug(
+									"while closing position " + buf.getFilePosition(), e);
+						}
+						nwb++;
+					}
 					SDFSLogger.getLog().debug("Flushed " + nwb + " buffers");
 
 				} catch (Exception e) {
