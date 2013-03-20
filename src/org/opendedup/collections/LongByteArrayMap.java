@@ -12,9 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.locks.ReentrantLock;
+import org.opendedup.collections.threads.SyncThread;
 import org.opendedup.hashing.HashFunctionPool;
 import org.opendedup.logging.SDFSLogger;
 import org.opendedup.sdfs.Main;
@@ -23,7 +23,7 @@ import org.opendedup.util.OSValidator;
 import sun.nio.ch.FileChannelImpl;
 
 public class LongByteArrayMap implements AbstractMap {
-	private static ArrayList<LongByteArrayMapListener> mapListener = new ArrayList<LongByteArrayMapListener>();
+
 	// RandomAccessFile bdbf = null;
 	private static final int arrayLength = 1 + HashFunctionPool.hashLength + 1 + 8;
 	String filePath = null;
@@ -46,24 +46,20 @@ public class LongByteArrayMap implements AbstractMap {
 		FREE = new byte[arrayLength];
 		Arrays.fill(FREE, (byte) 0);
 	}
-	
-	public static void addMapListener(LongByteArrayMapListener l) {
-		mapListener.add(l);
-	}
-	
-	public static void removeMapListener(LongByteArrayMapListener l) {
-		mapListener.remove(l);
-	}
-	
-	public static ArrayList<LongByteArrayMapListener> getMapListeners() {
-		return mapListener;
-	}
 
 	// private boolean smallMemory = false;
 	public LongByteArrayMap(String filePath) throws IOException {
 		this.filePath = filePath;
 		this.openFile();
+		new SyncThread(this);
 
+	}
+
+	public LongByteArrayMap(String filePath, String fileParams)
+			throws IOException {
+		this.filePath = filePath;
+		this.openFile();
+		new SyncThread(this);
 	}
 
 	public void iterInit() throws IOException {
@@ -221,10 +217,6 @@ public class LongByteArrayMap implements AbstractMap {
 	 */
 
 	public void put(long pos, byte[] data) throws IOException {
-		put(pos, data, true);
-	}
-
-	public void put(long pos, byte[] data, boolean propigateEvent) throws IOException {
 		if (this.isClosed()) {
 			throw new IOException("hashtable [" + this.filePath + "] is close");
 		}
@@ -245,10 +237,6 @@ public class LongByteArrayMap implements AbstractMap {
 	}
 
 	public void truncate(long length) throws IOException {
-		truncate(length, true);
-	}
-
-	public void truncate(long length, boolean propigateEvent) throws IOException {
 		this.hashlock.lock();
 		long fpos = 0;
 		FileChannel _bdb = null;
@@ -278,15 +266,6 @@ public class LongByteArrayMap implements AbstractMap {
 	 * @see com.annesam.collections.AbstractMap#remove(long)
 	 */
 	public void remove(long pos) throws IOException {
-		remove(pos, true);
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see com.annesam.collections.AbstractMap#remove(long)
-	 */
-	public void remove(long pos, boolean propigateEvent) throws IOException {
 		if (this.isClosed()) {
 			throw new IOException("hashtable [" + this.filePath + "] is close");
 		}
@@ -367,16 +346,6 @@ public class LongByteArrayMap implements AbstractMap {
 	 */
 	@Override
 	public void vanish() throws IOException {
-		vanish(true);
-	}
-
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see com.annesam.collections.AbstractMap#vanish()
-	 */
-	@Override
-	public void vanish(boolean propigateEvent) throws IOException {
 		this.hashlock.lock();
 		try {
 			if (!this.isClosed())
@@ -391,10 +360,6 @@ public class LongByteArrayMap implements AbstractMap {
 	}
 
 	public void copy(String destFilePath) throws IOException {
-		copy(destFilePath, true);
-	}
-
-	public void copy(String destFilePath, boolean propigateEvent) throws IOException {
 		this.hashlock.lock();
 		FileChannel srcC = null;
 		FileChannel dstC = null;
@@ -408,6 +373,7 @@ public class LongByteArrayMap implements AbstractMap {
 			else
 				dest.getParentFile().mkdirs();
 			if (OSValidator.isWindows()) {
+				SDFSLogger.getLog().info("Snapping on windows volume");
 				srcC = (FileChannel) Files.newByteChannel(
 						Paths.get(src.getPath()), StandardOpenOption.READ,
 						StandardOpenOption.SPARSE);

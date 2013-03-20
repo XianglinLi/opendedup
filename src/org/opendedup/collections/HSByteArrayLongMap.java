@@ -31,7 +31,6 @@ package org.opendedup.collections;
 ////////////////////////////////////////////////////////////////////////////////
 //package xbird.util.concurrent.map;
 
-
 import java.io.File;
 
 import java.io.IOException;
@@ -60,7 +59,6 @@ import org.opendedup.sdfs.io.Volume;
 import org.opendedup.sdfs.notification.SDFSEvent;
 import org.opendedup.util.CommandLineProgressBar;
 import org.opendedup.util.OpenBitSetSerialize;
-import org.opendedup.util.StorageUnit;
 import org.opendedup.util.StringUtils;
 
 public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
@@ -113,8 +111,8 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 		// Object[] _table_key_value;
 		private FileChannel kFC = null;
 		private FileChannel hFC = null;
-		private FileChannel vFC = null;
-		private FileChannel tFC = null;
+		private FileChannel vRaf = null;
+		private FileChannel tRaf = null;
 		MappedByteBuffer hm = null;
 		MappedByteBuffer km = null;
 		MappedByteBuffer vm = null;
@@ -129,7 +127,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 		private int iterpos = 0;
 		private long largest = 0;
 		private int capacity = 0;
-		private OpenBitSet claimed = null;
+		//private OpenBitSet claimed = null;
 		private boolean closed = false;
 
 		public Segment(final int initialCapacity, String path)
@@ -153,12 +151,12 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 
 				}
 				try {
-					this.vFC.close();
+					this.vRaf.close();
 				} catch (IOException e) {
 
 				}
 				try {
-					this.tFC.close();
+					this.tRaf.close();
 				} catch (IOException e) {
 
 				}
@@ -198,12 +196,12 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 
 			}
 			try {
-				this.vFC.force(true);
+				this.vRaf.force(true);
 			} catch (IOException e) {
 
 			}
 			try {
-				this.tFC.force(true);
+				this.tRaf.force(true);
 			} catch (IOException e) {
 
 			}
@@ -212,7 +210,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 		private void init(final int initialCapacity) throws IOException {
 			// _lock = new AtomicInteger();
 			// _lock.set(0);
-			claimed = new OpenBitSet(initialCapacity);
+			//claimed = new OpenBitSet(initialCapacity);
 			File f = new File(path + ".hh");
 			boolean newht = !f.exists();
 			this.kFC = FileChannel.open(Paths.get(path + ".hk"),
@@ -231,14 +229,14 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 			int kmc = initialCapacity;
 			km = kFC.map(MapMode.READ_WRITE, 0, kmc * hashLength);
 
-			vFC = FileChannel.open(Paths.get(path + ".hhpos"),
+			vRaf = FileChannel.open(Paths.get(path + ".hhpos"),
 					StandardOpenOption.CREATE, StandardOpenOption.SPARSE,
 					StandardOpenOption.WRITE, StandardOpenOption.READ);
-			tFC = FileChannel.open(Paths.get(path + ".hhctimes"),
+			tRaf = FileChannel.open(Paths.get(path + ".hhctimes"),
 					StandardOpenOption.CREATE, StandardOpenOption.SPARSE,
 					StandardOpenOption.WRITE, StandardOpenOption.READ);
-			vm = vFC.map(MapMode.READ_WRITE, 0, kmc * 8);
-			tm = tFC.map(MapMode.READ_WRITE, 0, kmc * 8);
+			vm = vRaf.map(MapMode.READ_WRITE, 0, kmc * 8);
+			tm = tRaf.map(MapMode.READ_WRITE, 0, kmc * 8);
 			hm.load();
 			km.load();
 			vm.load();
@@ -324,6 +322,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 			}
 		}
 
+		ByteBuffer lbuf = ByteBuffer.allocate(8);
 
 		private long getKeyValue(int pos) throws IOException {
 			this.keylock.lock();
@@ -366,6 +365,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 			}
 		}
 
+		@SuppressWarnings("unused")
 		private void setKeyTime(int pos) throws IOException {
 			this.keylock.lock();
 			try {
@@ -385,10 +385,10 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 				 * System.out.println("found at " + i + " val " + vals[i]); }
 				 */
 				if (val == HSByteArrayLongMap._NULL_HASH_DELTA) {
-					this.claimed.fastClear(pos);
+					//this.claimed.fastClear(pos);
 				}
 				else {
-					this.claimed.fastSet(pos);
+					//this.claimed.fastSet(pos);
 				}
 				hm.position(pos * 8);
 				hm.putLong(val);
@@ -416,7 +416,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 			do {
 				if (hash == (data >> _HASH_SHIFT)
 						&& Arrays.areEqual(key, this.getKey(iBucket))) {
-					this.claimed.fastSet(iBucket);
+					//this.claimed.fastSet(iBucket);
 					return true;
 				}
 				final int nextDelta = (int) data >> _NEXT_SHIFT;
@@ -473,7 +473,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 					final long value = this.getKeyValue(iRef);
 					if (_timestamp == start_timestamp) {
 						if (claim) {
-							this.claimed.fastSet(iBucket);
+							//this.claimed.fastSet(iBucket);
 						}
 						return value;
 					}
@@ -519,8 +519,8 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 						// final int iRef;
 						if (hash == (data >> _HASH_SHIFT)
 								&& Arrays.areEqual(key, this.getKey(iBucket))) {
-							this.claimed.fastSet(iBucket);
-							//return this.getKeyValue(iRef);
+							//this.claimed.fastSet(iBucket);
+							// return this.getKeyValue(iRef);
 							return false;
 						}
 						final int next_delta = (int) data >> _NEXT_SHIFT;
@@ -545,12 +545,13 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 						// add the new bucket to the begining of the list
 
 						int i_ref_bucket = i_free_bucket;
-						//this.claimed.fastSet(i_free_bucket);
+						// this.claimed.set(i_free_bucket);
 						this.setKeyVal(i_ref_bucket, key, value);
 						free_data &= _NOT_HASH_MASK;
 						free_data |= ((long) hash << _HASH_SHIFT);
 
 						if (0 == first_delta) {
+
 							final long start_data = this
 									.getHashVal(i_start_bucket);
 							final int start_next = (int) start_data >> _NEXT_SHIFT;
@@ -561,18 +562,14 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 										i_free_bucket,
 										(free_data & _NOT_NEXT_MASK)
 												| ((new_free_next << _NEXT_SHIFT) & _NEXT_MASK));
-								//this.claimed.fastSet(i_free_bucket);
-							} else{
+							} else
 								this.setHashVal(i_free_bucket, free_data);
-								//this.claimed.fastSet(i_free_bucket);
-							}
 							final long new_start_next = i_free_bucket
 									- i_start_bucket;
 							this.setHashVal(
 									i_start_bucket,
 									(start_data & _NOT_NEXT_MASK)
 											| ((new_start_next << _NEXT_SHIFT) & _NEXT_MASK));
-							//this.claimed.fastSet(i_start_bucket);
 						} else {// 0 != first_delta
 							if (_NULL_DELTA_SHORT != first_delta) {
 								final long new_free_next = i_start_bucket
@@ -584,7 +581,6 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 							if (i_free_bucket != i_start_bucket) {
 								start_data = this.getHashVal(i_start_bucket);
 								this.setHashVal(i_free_bucket, free_data);
-								//this.claimed.fastSet(i_free_bucket);
 							} else
 								start_data = free_data;
 							final long new_start_first = i_free_bucket
@@ -592,7 +588,6 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 							this.setHashVal(i_start_bucket,
 									(start_data & _NOT_FIRST_MASK)
 											| (new_start_first & _FIRST_MASK));
-							//this.claimed.fastSet(i_start_bucket);
 						}
 
 						++_count;
@@ -623,7 +618,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 						free_data &= _NOT_HASH_MASK;
 						free_data |= ((long) hash << _HASH_SHIFT);
 						this.setHashVal(i_free_bucket, free_data);
-						
+
 						if (_NULL_DELTA_SHORT == first_delta) {
 							long new_start_first = (i_free_bucket - i_start_bucket)
 									& _FIRST_MASK;
@@ -913,12 +908,12 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 
 					long val = this.getHashVal(iterpos);
 
-					if (val != HSByteArrayLongMap._NULL_HASH_DELTA) {
-						boolean cl = this.claimed.fastGet(iterpos);
-						if (cl) {
-							this.claimed.fastSet(iterpos);
-							return this.getKey(iterpos);
-						}
+					if (val == HSByteArrayLongMap._NULL_HASH_DELTA) {
+						//boolean cl = this.claimed.fastGet(iterpos);
+						//if (cl) {
+							//this.claimed.fastSet(iterpos);
+							//return this.getKey(iterpos);
+						//}
 					}
 				}
 				return null;
@@ -935,12 +930,12 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 
 					long val = this.getHashVal(iterpos);
 
-					if (val != HSByteArrayLongMap._NULL_HASH_DELTA) {
-						boolean cl = this.claimed.fastGet(iterpos);
-						if (cl) {
-							this.claimed.fastSet(iterpos);
-							return this.getKeyValue(iterpos);
-						}
+					if (val == HSByteArrayLongMap._NULL_HASH_DELTA) {
+						//boolean cl = this.claimed.fastGet(iterpos);
+						//if (cl) {
+							//this.claimed.fastSet(iterpos);
+							//return this.getKeyValue(iterpos);
+						//}
 					}
 				}
 				return -1;
@@ -1202,12 +1197,12 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 				while (iterpos < capacity) {
 					this.lock();
 					try {
-						boolean cl = claimed.fastGet(iterpos);
-						if (cl) {
-							claimed.fastClear(iterpos);
-							this.setKeyTime(iterpos);
-							k++;
-						}
+						//boolean cl = claimed.fastGet(iterpos);
+						//if (cl) {
+							//claimed.fastClear(iterpos);
+							//this.setKeyTime(iterpos);
+							//k++;
+						//}
 					} finally {
 						iterpos++;
 						this.unlock();
@@ -1222,20 +1217,19 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 
 		public long removeNextOldRecord(long time) throws IOException {
 			while (iterpos < capacity) {
-				long val = -1;
 				this.lock();
 				try {
 					if (this.getHashVal(iterpos) != HSByteArrayLongMap._NULL_HASH_DELTA) {
 
 						long tm = this.getKeyTime(iterpos);
 						if (tm < time) {
-							boolean cl = claimed.get(iterpos);
-							if (!cl) {
-								byte[] key = this.getKey(iterpos);
-								val = this.getKeyValue(iterpos);
-								this.remove(key);
-								return val;
-							}
+							//boolean cl = claimed.get(iterpos);
+							//if (!cl) {
+							//	byte[] key = this.getKey(iterpos);
+							//	val = this.getKeyValue(iterpos);
+							//	this.remove(key);
+							//	return val;
+							//}
 						}
 					}
 				} finally {
@@ -1447,7 +1441,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 		long data = 555555;
 		data &= _NOT_HASH_MASK;
 		System.out.println("data = " + data + " " + _NOT_HASH_MASK);
-		HSByteArrayLongMap map = new HSByteArrayLongMap(268435456/4, "/opt/test/ninja");
+		HSByteArrayLongMap map = new HSByteArrayLongMap(268435456, "/tmp/ninja");
 		Random r = new Random();
 		ArrayList<KVPair> al = new ArrayList<KVPair>();
 		int rndl = 64;
@@ -1473,10 +1467,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 		st = System.currentTimeMillis();
 		long sz = map.claimRecords();
 		et = System.currentTimeMillis() - st;
-		mbs = (((double) al.size() / (double) (et / 1000)) * 4096 )
-				/ (1024 * 1024);
-		System.out.println("Took " + et + " to claim " + sz + " mb/s="
-				+ mbs);
+		System.out.println("Took " + et + " to claim " + sz);
 		st = System.currentTimeMillis();
 		for (int i = 0; i < 100000; i++) {
 			r.nextBytes(b);
@@ -1516,10 +1507,7 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 		st = System.currentTimeMillis();
 		sz = map.claimRecords();
 		et = System.currentTimeMillis() - st;
-		mbs = (((double) al.size() / (double) (et / 1000)) * 4096 )
-				/ (1024 * 1024);
-		System.out.println("Took " + et + " to claim " + sz + " mb/s="
-				+ mbs);
+		System.out.println("Took " + et + " to claim " + sz);
 		System.out.println("Size is " + map.getSize());
 		map.close();
 		
@@ -1619,6 +1607,11 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 	}
 
 	@Override
+	public long getFreeBlocks() {
+		return this.freeSlots.cardinality();
+	}
+
+	@Override
 	public boolean put(ChunkData cm) throws IOException, HashtableFullException {
 		if (this.isClosed())
 			throw new HashtableFullException("Hashtable " + this.fileName
@@ -1628,7 +1621,6 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 		added = this.put(cm, true);
 		return added;
 	}
-	
 
 	@Override
 	public boolean put(ChunkData cm, boolean persist) throws IOException,
@@ -1822,17 +1814,13 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 			HashtableFullException {
 		this.lock();
 		try {
-			
 			this.size = initialCapacity;
-			long lc = size*4096;
-					
 			this.fileName = path;
 			File _fs = new File(path);
 			if (!_fs.getParentFile().exists()) {
 				_fs.getParentFile().mkdirs();
 			}
 			SDFSLogger.getLog().info("Loading freebits bitset");
-			
 			File bsf = new File(path + "ofreebit.map");
 			if (!bsf.exists()) {
 				SDFSLogger.getLog().debug("Looks like a new HashStore");
@@ -1904,11 +1892,9 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 			bar.finish();
 			this.closed = false;
 			// st = new SyncThread(this);
-			System.out.println(StorageUnit.of(lc).format(lc));
 		} finally {
 			this.unlock();
 		}
-		
 
 	}
 
@@ -1937,11 +1923,6 @@ public class HSByteArrayLongMap extends ReentrantLock implements AbstractMap,
 
 	@Override
 	public void vanish() throws IOException {
-		vanish(true);
-	}
-
-	@Override
-	public void vanish(boolean propigateEvent) throws IOException {
 		for (Segment seg : _segments) {
 			seg.clear();
 		}

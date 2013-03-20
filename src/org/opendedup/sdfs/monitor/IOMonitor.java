@@ -1,7 +1,6 @@
 package org.opendedup.sdfs.monitor;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.xml.parsers.ParserConfigurationException;
@@ -20,21 +19,8 @@ public class IOMonitor implements java.io.Serializable {
 	private long readOperations;
 	private long writeOperations;
 	private final ReentrantLock updateLock = new ReentrantLock();
-	private static ArrayList<IOMonitorListener> iofListeners = new ArrayList<IOMonitorListener>();
 
 	public IOMonitor() {
-	}
-	
-	public static void addIOMonListener(IOMonitorListener l) {
-		iofListeners.add(l);
-	}
-	
-	public static void removeIOMonListener(IOMonitorListener l) {
-		iofListeners.remove(l);
-	}
-	
-	public static ArrayList<IOMonitorListener> getIOMonListeners() {
-		return iofListeners;
 	}
 
 	public long getVirtualBytesWritten() {
@@ -49,42 +35,42 @@ public class IOMonitor implements java.io.Serializable {
 		return bytesRead;
 	}
 
-	public void addBytesRead(int len, boolean propigateEvent) {
+	public void addBytesRead(int len) {
 		this.updateLock.lock();
-		this.addRIO(true);
+		this.addRIO();
 		this.bytesRead = this.bytesRead + len;
 		this.updateLock.unlock();
-		Main.volume.addReadBytes(len, true);
+		Main.volume.addReadBytes(len);
 	}
 
-	public void addActualBytesWritten(int len, boolean propigateEvent) {
+	public void addActualBytesWritten(int len) {
 		this.updateLock.lock();
 		this.actualBytesWritten = this.actualBytesWritten + len;
 		this.updateLock.unlock();
-		Main.volume.addActualWriteBytes(len, true);
+		Main.volume.addActualWriteBytes(len);
 	}
 	
-	public void addWIO(boolean propigateEvent) {
+	public void addWIO() {
 		if(this.writeOperations == Long.MAX_VALUE)
 			this.writeOperations = 0;
 		this.writeOperations++;
 	}
 	
-	public void addRIO(boolean propigateEvent) {
+	public void addRIO() {
 		if(this.readOperations == Long.MAX_VALUE)
 			this.readOperations = 0;
 		this.readOperations++;
 	}
 
-	public void addVirtualBytesWritten(int len, boolean propigateEvent) {
+	public void addVirtualBytesWritten(int len) {
 		this.updateLock.lock();
-		this.addWIO(true);
+		this.addWIO();
 		this.virtualBytesWritten = this.virtualBytesWritten + len;
 		this.updateLock.unlock();
-		Main.volume.addVirtualBytesWritten(len, true);
+		Main.volume.addVirtualBytesWritten(len);
 	}
 
-	public void setVirtualBytesWritten(long len, boolean propigateEvent) {
+	public void setVirtualBytesWritten(long len) {
 		this.virtualBytesWritten = len;
 	}
 
@@ -92,30 +78,30 @@ public class IOMonitor implements java.io.Serializable {
 		return duplicateBlocks;
 	}
 
-	public void setDuplicateBlocks(long duplicateBlocks, boolean propigateEvent) {
+	public void setDuplicateBlocks(long duplicateBlocks) {
 		this.duplicateBlocks = duplicateBlocks;
 	}
 
-	public void setActualBytesWritten(long actualBytesWritten, boolean propigateEvent) {
+	public void setActualBytesWritten(long actualBytesWritten) {
 		this.actualBytesWritten = actualBytesWritten;
 	}
 
-	public void setBytesRead(long bytesRead, boolean propigateEvent) {
+	public void setBytesRead(long bytesRead) {
 		this.bytesRead = bytesRead;
 
 	}
 
-	public void removeDuplicateBlock(boolean propigateEvent) {
+	public void removeDuplicateBlock() {
 		this.duplicateBlocks = this.duplicateBlocks - Main.CHUNK_LENGTH;
-		Main.volume.addDuplicateBytes(-1 * Main.CHUNK_LENGTH, true);
+		Main.volume.addDuplicateBytes(-1 * Main.CHUNK_LENGTH);
 	}
 
-	public void clearAllCounters(boolean propigateEvent) {
+	public void clearAllCounters() {
 		this.updateLock.lock();
-		Main.volume.addReadBytes(-1 * this.bytesRead, true);
-		Main.volume.addDuplicateBytes(-1 * this.duplicateBlocks, true);
-		Main.volume.addActualWriteBytes(-1 * this.actualBytesWritten, true);
-		Main.volume.addVirtualBytesWritten(-1 * this.virtualBytesWritten, true);
+		Main.volume.addReadBytes(-1 * this.bytesRead);
+		Main.volume.addDuplicateBytes(-1 * this.duplicateBlocks);
+		Main.volume.addActualWriteBytes(-1 * this.actualBytesWritten);
+		Main.volume.addVirtualBytesWritten(-1 * this.virtualBytesWritten);
 		this.bytesRead = 0;
 		this.duplicateBlocks = 0;
 		this.actualBytesWritten = 0;
@@ -123,7 +109,7 @@ public class IOMonitor implements java.io.Serializable {
 		this.updateLock.unlock();
 	}
 	
-	public void clearFileCounters(boolean propigateEvent) {
+	public void clearFileCounters() {
 		this.updateLock.lock();
 		this.bytesRead = 0;
 		this.duplicateBlocks = 0;
@@ -132,11 +118,11 @@ public class IOMonitor implements java.io.Serializable {
 		this.updateLock.unlock();
 	}
 
-	public void addDulicateBlock(boolean propigateEvent) {
+	public void addDulicateBlock() {
 		this.updateLock.lock();
 		this.duplicateBlocks = this.duplicateBlocks + Main.CHUNK_LENGTH;
 		this.updateLock.unlock();
-		Main.volume.addDuplicateBytes(Main.CHUNK_LENGTH, true);
+		Main.volume.addDuplicateBytes(Main.CHUNK_LENGTH);
 	}
 
 	public byte[] toByteArray() {

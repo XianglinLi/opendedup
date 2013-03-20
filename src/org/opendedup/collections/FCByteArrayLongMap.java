@@ -39,7 +39,7 @@ public class FCByteArrayLongMap implements AbstractShard {
 	private boolean closed = false;
 	private BitSet claims = null;
 	private BitSet mapped = null;
-	private long bgst = 0;
+	long bgst = 0;
 
 	static {
 		FREE = new byte[HashFunctionPool.hashLength];
@@ -310,8 +310,6 @@ public class FCByteArrayLongMap implements AbstractShard {
 				pos = (pos / FREE.length) * 8;
 				this.vRaf.seek(pos);
 				long fp = vRaf.readLong();
-				ChunkData ck = new ChunkData(fp,key);
-				if(ck.setmDelete(true)) {
 				fp = fp * -1;
 				this.vRaf.seek(pos);
 				this.vRaf.writeLong(fp);
@@ -320,12 +318,9 @@ public class FCByteArrayLongMap implements AbstractShard {
 				pos = (pos / 8);
 				this.claims.clear(pos);
 				this.mapped.clear(pos);
-				
 				// this.store.position(pos);
 				// this.store.put((byte)0);
 				return true;
-				}else 
-					return false;
 			}
 		} catch (Exception e) {
 			SDFSLogger.getLog().fatal("error getting record", e);
@@ -741,8 +736,7 @@ public class FCByteArrayLongMap implements AbstractShard {
 							this.mapped.clear(iterPos);
 							return val;
 						}
-						}
-					
+					}
 				}
 			} finally {
 				iterPos++;

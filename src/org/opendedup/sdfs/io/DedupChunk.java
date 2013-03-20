@@ -1,7 +1,6 @@
 package org.opendedup.sdfs.io;
 
 import java.io.IOException;
-
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.opendedup.sdfs.servers.HCServiceProxy;
@@ -11,7 +10,7 @@ import org.opendedup.sdfs.servers.HCServiceProxy;
  * @author annesam Base class for storing byte arrays associated with dedup
  *         files into memory.
  */
-public class DedupChunk implements java.io.Serializable, DedupChunkInterface {
+public class DedupChunk implements java.io.Serializable {
 	private static final long serialVersionUID = -5440311151699047048L;
 	private byte[] hash;
 	private byte[] data = null;
@@ -61,217 +60,116 @@ public class DedupChunk implements java.io.Serializable, DedupChunkInterface {
 		this.newChunk = false;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#getHash()
+	/**
+	 * 
+	 * @return returns the MD5 Hash
 	 */
 
-	@Override
 	public byte[] getHash() {
 		return hash;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#getLength()
+	/**
+	 * 
+	 * @return gets the lenth of the DedupChunk
 	 */
-	@Override
 	public int getLength() {
 		return length;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#getFilePosition()
+	/**
+	 * 
+	 * @return the file position within the DedupFile
 	 */
-	@Override
 	public long getFilePosition() {
 		return position;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#setLength(int)
+	/**
+	 * 
+	 * @param length
+	 *            the length of the dedup chunk
 	 */
-	@Override
 	public void setLength(int length) {
 		this.length = length;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#isNewChunk()
+	/**
+	 * 
+	 * @return if this is a new chunk or one retrieved from the chunk store
+	 *         service
 	 */
-	@Override
 	public boolean isNewChunk() {
 		return newChunk;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#setNewChunk(boolean)
+	/**
+	 * 
+	 * @param newChunk
+	 *            sets the chunk as new
 	 */
-	@Override
 	public void setNewChunk(boolean newChunk) {
 		this.newChunk = newChunk;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#getChunk()
-	 */
-	@Override
 	public byte[] getChunk() throws IOException, BufferClosedException {
 		this.lock.lock();
 		try {
-			if (data != null) {
+			if (data != null)
 				return data;
-			}
-			else {
+			else
 				return HCServiceProxy.fetchChunk(hash);
-			}
 		} finally {
 			this.lock.unlock();
 		}
 	}
+	
+	public byte[] getReadChunk() throws IOException, BufferClosedException {
+		this.lock.lock();
+		try {
+			if (data != null)
+				return data;
+			else
+				return HCServiceProxy.fetchChunk(hash);
+		} finally {
+			this.lock.unlock();
+		}
+	}
+	
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#setWritable(boolean)
+	/**
+	 * sets the chunk as writable
+	 * 
+	 * @param writable
+	 *            true if writable
 	 */
-	@Override
 	public void setWritable(boolean writable) {
 		this.writable = writable;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#isWritable()
+	/**
+	 * 
+	 * @return true if the chunk is writable
 	 */
 
-	@Override
 	public boolean isWritable() {
 		return writable;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#destroy()
-	 */
-	@Override
 	public void destroy() {
-		
+
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#setDoop(boolean)
-	 */
-	@Override
 	public void setDoop(boolean doop) {
 		this.doop = doop;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#isDoop()
-	 */
-	@Override
 	public boolean isDoop() {
 		return doop;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.opendedup.sdfs.io.DedupChunkInterface#open()
-	 */
-	@Override
 	public void open() {
 
-	}
-
-	@Override
-	public int getBytesWritten() {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	@Override
-	public DedupFile getDedupFile() {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public boolean sync() throws IOException {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public int capacity() {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	@Override
-	public long getEndPosition() {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	@Override
-	public byte[] getFlushedBuffer() throws BufferClosedException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public boolean isClosed() {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public void flush() throws BufferClosedException {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void write(byte[] b, int pos) throws BufferClosedException,
-			IOException {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void truncate(int len) throws BufferClosedException {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public boolean isDirty() {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public void setDirty(boolean dirty) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void close() throws IOException {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void persist() {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public boolean isPrevDoop() {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public void setPrevDoop(boolean prevDoop) {
-		// TODO Auto-generated method stub
-		
 	}
 
 }

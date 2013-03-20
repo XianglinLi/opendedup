@@ -39,6 +39,10 @@ public class MountSDFS {
 				"Run single threaded");
 		options.addOption("m", true,
 				"mount point for SDFS file system \n e.g. /media/dedup");
+		options.addOption(
+				"r",
+				true,
+				"path to chunkstore routing file. \n Will default to: \n/etc/sdfs/routing-config.xml");
 		options.addOption("v", true, "sdfs volume to mount \ne.g. dedup");
 		options.addOption("vc", true,
 				"sdfs volume configuration file to mount \ne.g. /etc/sdfs/dedup-volume-cfg.xml");
@@ -53,6 +57,7 @@ public class MountSDFS {
 	public static void main(String[] args) throws ParseException {
 		checkJavaVersion();
 		String volumeConfigFile = null;
+		String routingConfigFile = null;
 		CommandLineParser parser = new PosixParser();
 		Options options = buildOptions();
 		CommandLine cmd = parser.parse(options, args);
@@ -81,6 +86,15 @@ public class MountSDFS {
 			Main.runCompact = true;
 			if(cmd.hasOption("forcecompact"))
 				Main.forceCompact = true;
+		}
+		if (cmd.hasOption("r")) {
+			File f = new File(cmd.getOptionValue("r").trim());
+			if (!f.exists()) {
+				System.out.println("Routing configuration file " + f.getPath()
+						+ " does not exist");
+				System.exit(-1);
+			}
+			routingConfigFile = f.getPath();
 		}
 		if (cmd.hasOption("v")) {
 			File f = new File("/etc/sdfs/" + cmd.getOptionValue("v").trim()
@@ -125,7 +139,8 @@ public class MountSDFS {
 		if (OSValidator.isWindows())
 			Main.logPath = Main.volume.getPath() + "\\log\\"
 					+ Main.volume.getName() + ".log";
-		SDFSService sdfsService = new SDFSService(volumeConfigFile);
+		SDFSService sdfsService = new SDFSService(volumeConfigFile,
+				routingConfigFile);
 		if (cmd.hasOption("d")) {
 			SDFSLogger.setLevel(0);
 		}

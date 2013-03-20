@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.jets3t.service.ServiceException;
 import org.jets3t.service.impl.rest.httpclient.GoogleStorageService;
@@ -28,7 +29,9 @@ import org.w3c.dom.Element;
 public class GoogleChunkStore implements AbstractChunkStore {
 	private String name;
 	private static GoogleStorageService gsService;
+	private boolean closed = false;
 	private long currentLength = 0L;
+	private static final int pageSize = Main.chunkStorePageSize;
 	// private static ReentrantLock lock = new ReentrantLock();
 
 	static {
@@ -102,7 +105,19 @@ public class GoogleChunkStore implements AbstractChunkStore {
 		return this.name;
 	}
 
-	
+	private static ReentrantLock reservePositionlock = new ReentrantLock();
+
+	@Override
+	public long reserveWritePosition(int len) throws IOException {
+		if (this.closed)
+			throw new IOException("ChunkStore is closed");
+		reservePositionlock.lock();
+		long pos = this.currentLength;
+		this.currentLength = this.currentLength + pageSize;
+		reservePositionlock.unlock();
+		return pos;
+
+	}
 
 	@Override
 	public void setName(String name) {
@@ -114,7 +129,7 @@ public class GoogleChunkStore implements AbstractChunkStore {
 	}
 
 	@Override
-	public long writeChunk(byte[] hash, byte[] chunk, int len)
+	public void writeChunk(byte[] hash, byte[] chunk, int len, long start)
 			throws IOException {
 
 		String hashString = this.getHashName(hash);
@@ -137,7 +152,6 @@ public class GoogleChunkStore implements AbstractChunkStore {
 		gsObject.setContentLength(s3IS.available());
 		try {
 			gsService.putObject(this.name, gsObject);
-			return 0;
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			SDFSLogger.getLog().fatal(
@@ -224,6 +238,25 @@ public class GoogleChunkStore implements AbstractChunkStore {
 	}
 
 	@Override
+	public void addChunkStoreListener(AbstractChunkStoreListener listener) {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void claimChunk(byte[] hash, long start) throws IOException {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public boolean moveChunk(byte[] hash, long origLoc, long newLoc)
+			throws IOException {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
 	public void init(Element config) throws IOException {
 		try {
 			this.name = Main.cloudBucket;
@@ -270,9 +303,9 @@ public class GoogleChunkStore implements AbstractChunkStore {
 	}
 
 	@Override
-	public long getFreeBlocks() {
+	public void compact() throws IOException {
 		// TODO Auto-generated method stub
-		return 0;
+
 	}
 
 }

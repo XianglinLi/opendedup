@@ -196,6 +196,10 @@ public class HashChunkService implements HashChunkServiceInterface{
 		return hs.getEntries();
 	}
 
+	public long getFreeBlocks() {
+		return hs.getFreeBlocks();
+	}
+
 	public long getMaxSize() {
 		return hs.getMaxEntries();
 	}

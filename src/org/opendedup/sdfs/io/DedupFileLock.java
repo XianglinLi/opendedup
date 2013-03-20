@@ -13,7 +13,6 @@ public class DedupFileLock {
 	private long size;
 	private boolean shared;
 	private boolean valid;
-	private String host;
 
 	/**
 	 * Instantiates a DedupFileLock
@@ -35,14 +34,6 @@ public class DedupFileLock {
 		this.shared = shared;
 		this.valid = true;
 
-	}
-	
-	public String getHost() {
-		return this.host;
-	}
-	
-	public void setHost(String host) {
-		this.host = host;
 	}
 
 	/**

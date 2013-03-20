@@ -2,9 +2,13 @@ package org.opendedup.sdfs.servers;
 
 import java.io.IOException;
 
+import java.nio.ByteBuffer;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.locks.ReentrantLock;
+
+import jonelo.jacksum.adapt.org.bouncycastle.util.Arrays;
 
 import org.opendedup.collections.HashtableFullException;
 import org.opendedup.logging.SDFSLogger;
@@ -22,12 +26,13 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 public class HCServiceProxy {
 
-	static HashClientPool p = null;
+	public static HashMap<String, HashClientPool> dseServers = new HashMap<String, HashClientPool>();
+	public static HashMap<String, HashClientPool> dseRoutes = new HashMap<String, HashClientPool>();
 	private static HashChunkServiceInterface hcService = null;
-	private static int cacheLenth = 10485760 / Main.CHUNK_LENGTH;
+	private static int cacheLength = 10485760 / Main.CHUNK_LENGTH;
 	private static ConcurrentLinkedHashMap<String, ByteCache> readBuffers = new Builder<String, ByteCache>()
-			.concurrencyLevel(Main.writeThreads).initialCapacity(cacheLenth)
-			.maximumWeightedCapacity(cacheLenth)
+			.concurrencyLevel(Main.writeThreads).initialCapacity(cacheLength)
+			.maximumWeightedCapacity(cacheLength + 1)
 			.listener(new EvictionListener<String, ByteCache>() {
 				// This method is called just after a new entry has been
 				// added
@@ -51,12 +56,6 @@ public class HCServiceProxy {
 			hcService.init();
 			if (!Main.closedGracefully) {
 				hcService.runConsistancyCheck();
-			}
-			if (Main.DSERemoteHostName != null) {
-				HCServer s = new HCServer(Main.DSERemoteHostName,
-						Main.DSERemotePort, false, Main.DSERemoteCompress,
-						Main.DSERemoteUseSSL);
-				p = new HashClientPool(s, "server", 16);
 			}
 		} catch (Exception e) {
 			SDFSLogger.getLog().error("Unable to initialize HashChunkService ",
@@ -109,7 +108,7 @@ public class HCServiceProxy {
 
 	public static long getFreeBlocks() {
 		if (Main.chunkStoreLocal) {
-			return HCServiceProxy.getChunkStore().getFreeBlocks();
+			return HCServiceProxy.hcService.getFreeBlocks();
 		} else {
 			return -1;
 		}
@@ -128,6 +127,21 @@ public class HCServiceProxy {
 		}
 	}
 
+	private static HashClient getReadHashClient(String name) throws Exception {
+		HashClient hc = dseRoutes.get(name).borrowObject();
+		return hc;
+	}
+
+	private static void returnObject(String name, HashClient hc)
+			throws IOException {
+		dseRoutes.get(name).returnObject(hc);
+	}
+
+	private static HashClient getWriteHashClient(String name) throws Exception {
+		HashClient hc = dseRoutes.get(name).borrowObject();
+		return hc;
+	}
+
 	public static boolean writeChunk(byte[] hash, byte[] aContents,
 			int position, int len, boolean sendChunk) throws IOException,
 			HashtableFullException {
@@ -139,10 +153,13 @@ public class HCServiceProxy {
 						Main.CHUNK_LENGTH, false);
 
 			}
+			
 		} else {
+			byte[] hashRoute = { hash[0] };
+			String db = StringUtils.getHexString(hashRoute);
 			HashClient hc = null;
 			try {
-				hc = p.borrowObject();
+				hc = getWriteHashClient(db);
 				doop = hc.hashExists(hash, (short) 0);
 				if (!doop && sendChunk) {
 					try {
@@ -155,12 +172,11 @@ public class HCServiceProxy {
 					}
 				}
 			} catch (Exception e1) {
-				// TODO Auto-generated catch block
 				SDFSLogger.getLog().fatal("Unable to write chunk " + hash, e1);
 				throw new IOException("Unable to write chunk " + hash);
 			} finally {
 				if (hc != null)
-					p.returnObject(hc);
+					returnObject(db, hc);
 			}
 		}
 		return doop;
@@ -202,9 +218,12 @@ public class HCServiceProxy {
 			/*
 			 * if (existingHashes.containsKey(hashStr)) { return true; }
 			 */
+			String db = null;
 			HashClient hc = null;
 			try {
-				hc = p.borrowObject();
+				byte[] hashRoute = { hash[0] };
+				db = StringUtils.getHexString(hashRoute);
+				hc = getWriteHashClient(db);
 			} catch (Exception e1) {
 				SDFSLogger.getLog().fatal(
 						"unable to execute find hash for " + hashStr);
@@ -219,7 +238,7 @@ public class HCServiceProxy {
 				throw new IOException(e);
 			} finally {
 				try {
-					p.returnObject(hc);
+					returnObject(db, hc);
 				} catch (Exception e) {
 					SDFSLogger
 							.getLog()
@@ -234,11 +253,14 @@ public class HCServiceProxy {
 	public static boolean cacheContains(String hashStr) {
 		return readBuffers.containsKey(hashStr);
 	}
-
+	
 	public static byte[] fetchChunk(byte[] hash) throws IOException {
+		
 		if (Main.chunkStoreLocal) {
-			HashChunk hc = HCServiceProxy.hcService.fetchChunk(hash);
-			return hc.getData();
+			
+				HashChunk hc = HCServiceProxy.hcService.fetchChunk(hash);
+				byte [] data = hc.getData();
+			return data;
 		} else {
 			String hashStr = StringUtils.getHexString(hash);
 			boolean reading = false;
@@ -290,9 +312,12 @@ public class HCServiceProxy {
 				}
 			} catch (Exception e) {
 			}
+			String db = null;
 			HashClient hc = null;
 			try {
-				hc = p.borrowObject();
+				byte[] hashRoute = { hash[0] };
+				db = StringUtils.getHexString(hashRoute);
+				hc = getReadHashClient(db);
 				byte[] data = hc.fetchChunk(hash);
 				ByteCache _b = new ByteCache(data);
 				readlock.lock();
@@ -308,7 +333,7 @@ public class HCServiceProxy {
 				throw new IOException("Unable to fetch buffer " + hashStr);
 			} finally {
 				if (hc != null)
-					p.returnObject(hc);
+					returnObject(db, hc);
 				if (readlock.isLocked())
 					readlock.unlock();
 			}
@@ -339,5 +364,51 @@ public class HCServiceProxy {
 	public static void close() {
 		hcService.close();
 	}
+	
 
+
+}
+final class ByteArrayWrapper
+{
+    public final byte[] data;
+    private byte[] hash;
+
+    public ByteArrayWrapper(byte[] data, byte [] hash)
+    {
+        if (data == null)
+        {
+            throw new NullPointerException();
+        }
+        this.data = data;
+        this.hash = hash;
+    }
+    
+    public ByteArrayWrapper(byte[] data)
+    {
+        if (data == null)
+        {
+            throw new NullPointerException();
+        }
+        this.data = data;
+    }
+
+    @Override
+    public boolean equals(Object other)
+    {
+        if (!(other instanceof ByteArrayWrapper))
+        {
+            return false;
+        }
+        return Arrays.areEqual(data, ((ByteArrayWrapper)other).data);
+    }
+    
+    public boolean hashesEqual(byte [] ohash) {
+    	return Arrays.areEqual(hash,ohash);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return ByteBuffer.wrap(data).getInt();
+    }
 }

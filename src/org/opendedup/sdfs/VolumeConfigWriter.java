@@ -78,8 +78,8 @@ public class VolumeConfigWriter {
 	String cloudSecretKey = "";
 	String cloudBucketName = "";
 	boolean cloudCompress = Main.cloudCompress;
-	//int chunk_store_read_cache = Main.chunkStorePageCache;
-	//int chunk_store_dirty_timeout = Main.chunkStoreDirtyCacheTimeout;
+	int chunk_store_read_cache = Main.chunkStorePageCache;
+	int chunk_store_dirty_timeout = Main.chunkStoreDirtyCacheTimeout;
 	String chunk_store_encryption_key = PassPhrase.getNext();
 	boolean chunk_store_encrypt = false;
 
@@ -258,10 +258,17 @@ public class VolumeConfigWriter {
 			this.azureEnabled = Boolean.parseBoolean(cmd
 					.getOptionValue("azure-enabled"));
 		}
-		
+		if (cmd.hasOption("chunk-store-read-cache")) {
+			this.chunk_store_read_cache = Integer.parseInt(cmd
+					.getOptionValue("chunk-store-read-cache"));
+		}
 		if (cmd.hasOption("chunk-store-encrypt")) {
 			this.chunk_store_encrypt = Boolean.parseBoolean(cmd
 					.getOptionValue("chunk-store-encrypt"));
+		}
+		if (cmd.hasOption("chunk-store-dirty-timeout")) {
+			this.chunk_store_dirty_timeout = Integer.parseInt(cmd
+					.getOptionValue("chunk-store-dirty-timeout"));
 		}
 		if (cmd.hasOption("gc-class")) {
 			this.gc_class = cmd.getOptionValue("gc-class");
@@ -420,18 +427,10 @@ public class VolumeConfigWriter {
 		if(cmd.hasOption("report-dse-size")) {
 			try {
 			Boolean rp = Boolean.parseBoolean(cmd.getOptionValue("report-dse-size"));
-			//this.useDSECapacity = rp;
+			this.useDSECapacity = rp;
 			this.useDSESize = rp;
 			}catch(Throwable e) {
 				System.err.println("value for report-dse-size must be true or false");
-			}
-		}if(cmd.hasOption("report-dse-capacity")) {
-			try {
-			Boolean rp = Boolean.parseBoolean(cmd.getOptionValue("report-dse-capacity"));
-			this.useDSECapacity = rp;
-			//this.useDSESize = rp;
-			}catch(Throwable e) {
-				System.err.println("value for report-dse-capacity must be true or false");
 			}
 		}
 		if(cmd.hasOption("use-perf-mon")) {
@@ -528,7 +527,11 @@ public class VolumeConfigWriter {
 		cs.setAttribute("chunk-store", this.chunk_store_data_location);
 		cs.setAttribute("encrypt", Boolean.toString(this.chunk_store_encrypt));
 		cs.setAttribute("encryption-key", this.chunk_store_encryption_key);
+		cs.setAttribute("chunk-store-read-cache",
+				Integer.toString(this.chunk_store_read_cache));
 		cs.setAttribute("max-repl-batch-sz", Integer.toString(Main.MAX_REPL_BATCH_SZ));
+		cs.setAttribute("chunk-store-dirty-timeout",
+				Integer.toString(this.chunk_store_dirty_timeout));
 		cs.setAttribute("hash-db-store", this.chunk_store_hashdb_location);
 		cs.setAttribute("chunkstore-class", this.chunk_store_class);
 		cs.setAttribute("hashdb-class", this.hash_db_class);
@@ -823,6 +826,12 @@ public class VolumeConfigWriter {
 						"The class for the specific chunk store to be used. \n Defaults to org.opendedup.sdfs.filestore.FileChunkStore")
 				.hasArg().withArgName("Class Name").create());
 		options.addOption(OptionBuilder
+				.withLongOpt("chunk-read-ahead-pages")
+				.withDescription(
+						"The number of pages to read ahead when doing a disk read on the chunk store."
+								+ " \nDefaults to: \n 128/io-chunk-size or 1 if greater than 128")
+				.hasArg().withArgName("NUMBER").create());
+		options.addOption(OptionBuilder
 				.withLongOpt("chunk-store-gc-schedule")
 				.withDescription(
 						"The schedule, in cron format, to check for unclaimed chunks within the Dedup Storage Engine. "
@@ -861,12 +870,26 @@ public class VolumeConfigWriter {
 						+ "|"
 						+ HashFunctionPool.MURMUR3_16).create());
 		options.addOption(OptionBuilder
+				.withLongOpt("chunk-store-read-cache")
+				.withDescription(
+						"The size in MB of the Dedup Storeage Engine's read cache. Its useful to set this if you have high number of reads"
+								+ " for AWS/Cloud storage "
+								+ "This . \n Defaults to: \n 5MB").hasArg()
+				.withArgName("Megabytes").create());
+		options.addOption(OptionBuilder
 				.withLongOpt("chunk-store-encrypt")
 				.withDescription(
 						"Whether or not to Encrypt chunks within the Dedup Storage Engine. The encryption key is generated automatically."
 								+ " For AWS this is a good option to enable. The default for this is"
 								+ " false").hasArg().withArgName("true|false")
 				.create());
+		options.addOption(OptionBuilder
+				.withLongOpt("chunk-store-dirty-timeout")
+				.withDescription(
+						"The timeout, in milliseconds, for a previous read for the same chunk to finish within the Dedup Storage Engine. "
+								+ "For AWS with slow links you may want to set this to a higher number. The default for this is"
+								+ " 1000 ms.").hasArg()
+				.withArgName("Milliseconds").create());
 		options.addOption(OptionBuilder
 				.withLongOpt("aws-enabled")
 				.withDescription(
@@ -923,7 +946,7 @@ public class VolumeConfigWriter {
 						"Enable Upstream Dedup Storage Engine communication")
 				.create());
 		options.addOption(OptionBuilder.withLongOpt("dse-upstream-host")
-				.withDescription("Host name or IPv4 Address of upstream dse").hasArg()
+				.withDescription("Host name or IPv4 Address ").hasArg()
 				.withArgName("FQDN or IPv4 Address").create());
 		options.addOption(OptionBuilder
 				.withLongOpt("dse-upstream-host-port")
@@ -963,21 +986,14 @@ public class VolumeConfigWriter {
 		options.addOption(OptionBuilder
 				.withLongOpt("report-dse-size")
 				.withDescription(
-						"If set to \"true\" this volume will used as the actual"+
-				" used statistics from the DSE. If this value is set to \"false\" it will"+
-								"report as virtual size of the volume and files. Defaults to \"true\"")
-				.hasArg().withArgName("true|false").create());
-		options.addOption(OptionBuilder
-				.withLongOpt("report-dse-capacity")
-				.withDescription(
-						"If set to \"true\" this volume will report capacity the actual"+
-				"capacity statistics from the DSE. If this value is set to \"false\" it will"+
+						"If set to \"true\" this volume will report capacity and used as the actual"+
+				"capacity and used statistics from the DSE. If this value is set to \"false\" it will"+
 								"report as virtual size of the volume and files. Defaults to \"true\"")
 				.hasArg().withArgName("true|false").create());
 		options.addOption(OptionBuilder
 				.withLongOpt("use-perf-mon")
 				.withDescription(
-						"If set to \"true\" this volume will log io statistics to /etc/sdfs/ directory. Defaults to \"false\"")
+						"If set to \"true\" this volume will log io statistics to /etc/sdfs/ directory. Defaults to \"true\"")
 				.hasArg().withArgName("true|false").create());
 		return options;
 	}

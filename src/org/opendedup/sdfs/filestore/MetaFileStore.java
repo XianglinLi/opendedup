@@ -2,7 +2,6 @@ package org.opendedup.sdfs.filestore;
 
 import java.io.File;
 
-
 import java.io.IOException;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -33,6 +32,7 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
  * 
  */
 public class MetaFileStore {
+
 	// private static String dbURL =
 	// "jdbc:derby:myDB;create=true;user=me;password=mine";
 
@@ -65,7 +65,8 @@ public class MetaFileStore {
 	 * @param mf
 	 */
 	private static void cacheMF(MetaDataDedupFile mf) {
-		pathMap.put(mf.getPath(), mf);
+		if(!mf.isDirectory())
+			pathMap.put(mf.getPath(), mf);
 	}
 
 	public static void rename(String src, String dst, MetaDataDedupFile mf) {
@@ -99,24 +100,22 @@ public class MetaFileStore {
 	private static ReentrantLock getMFLock = new ReentrantLock();
 
 	public static MetaDataDedupFile getMF(File f) {
-		getMFLock.lock();
-		try {
+		MetaDataDedupFile mf = null;
 
-			if (f.isDirectory()) {
-				return MetaDataDedupFile.getFile(f.getPath());
-			}
-			MetaDataDedupFile mf = null;
+		mf = pathMap.get(f.getPath());
 
-			mf = pathMap.get(f.getPath());
-			if (mf == null) {
+		if (mf == null) {
+			getMFLock.lock();
+			try {
 				mf = MetaDataDedupFile.getFile(f.getPath());
 				cacheMF(mf);
+			} finally {
+				getMFLock.unlock();
 			}
-
-			return mf;
-		} finally {
-			getMFLock.unlock();
 		}
+
+		return mf;
+
 	}
 
 	public static MetaDataDedupFile getFolder(File f) {
@@ -159,25 +158,6 @@ public class MetaFileStore {
 	 */
 	public static MetaDataDedupFile snapshot(String origionalPath,
 			String snapPath, boolean overwrite, SDFSEvent evt) throws IOException {
-				return snapshot(origionalPath, snapPath, overwrite, evt,
-						true);
-			}
-
-	/**
-	 * Clones a MetaDataDedupFile and the DedupFile.
-	 * 
-	 * @param origionalPath
-	 *            the path of the source
-	 * @param snapPath
-	 *            the path of the destination
-	 * @param overwrite
-	 *            whether or not to overwrite the destination if it exists
-	 * @param propigateEvent TODO
-	 * @return the destination file.
-	 * @throws IOException
-	 */
-	public static MetaDataDedupFile snapshot(String origionalPath,
-			String snapPath, boolean overwrite, SDFSEvent evt, boolean propigateEvent) throws IOException {
 		try {
 		Path p = Paths.get(origionalPath);
 		if (Files.isSymbolicLink(p)) {
@@ -245,12 +225,8 @@ public class MetaFileStore {
 	 * @param guid
 	 *            the guid for the MetaDataDedupFile
 	 */
-	
-	public static boolean removeMetaFile(String path) {
-		return removeMetaFile(path, true);
-	}
 
-	public static boolean removeMetaFile(String path, boolean propigateEvent) {
+	public static boolean removeMetaFile(String path) {
 		getMFLock.lock();
 		try {
 			MetaDataDedupFile mf = null;
@@ -274,7 +250,7 @@ public class MetaFileStore {
 					File[] files = ps.listFiles();
 
 					for (int i = 0; i < files.length; i++) {
-						boolean sd = removeMetaFile(files[i].getPath(), propigateEvent);
+						boolean sd = removeMetaFile(files[i].getPath());
 						files[i].delete();
 						if (!sd) {
 							SDFSLogger.getLog().warn(
@@ -293,20 +269,20 @@ public class MetaFileStore {
 					mf = getMF(new File(path));
 					pathMap.remove(mf.getPath());
 
-					Main.volume.updateCurrentSize(-1 * mf.length(), true);
+					Main.volume.updateCurrentSize(-1 * mf.length());
 					try {
 						Main.volume.addActualWriteBytes(-1
-								* mf.getIOMonitor().getActualBytesWritten(), true);
+								* mf.getIOMonitor().getActualBytesWritten());
 						Main.volume.addDuplicateBytes(-1
-								* mf.getIOMonitor().getDuplicateBlocks(), true);
+								* mf.getIOMonitor().getDuplicateBlocks());
 						Main.volume.addVirtualBytesWritten(-1
-								* mf.getIOMonitor().getVirtualBytesWritten(), true);
+								* mf.getIOMonitor().getVirtualBytesWritten());
 					} catch (Exception e) {
 
 					}
 					if (mf.getDfGuid() != null) {
 						try {
-							deleted = mf.getDedupFile().delete(true);
+							deleted = mf.getDedupFile().delete();
 						} catch (Exception e) {
 							SDFSLogger.getLog().debug(
 									"unable to delete dedup file for " + path,
@@ -334,12 +310,14 @@ public class MetaFileStore {
 		}
 	}
 
+	/**
+	 * closes the jdbm database.
+	 */
 	public static void close() {
 		SDFSLogger.getLog().info("Closing metafilestore");
 		try {
 			commit();
 		} catch (Exception e) {
-			
 		}
 		SDFSLogger.getLog().info("metafilestore closed");
 	}

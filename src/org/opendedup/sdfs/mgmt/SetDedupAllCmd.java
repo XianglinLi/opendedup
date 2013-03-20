@@ -14,7 +14,7 @@ public class SetDedupAllCmd implements XtendedCmd {
 		File f = new File(Main.volume.getPath() + File.separator + file);
 		try {
 			boolean dedup = Boolean.parseBoolean(cmd);
-			MetaFileStore.getMF(f.getPath()).setDedup(dedup, true);
+			MetaFileStore.getMF(f.getPath()).setDedup(dedup);
 			return "SUCCESS Dedup Success: set dedup to [" + f.getPath()
 					+ "]  [" + dedup + "]";
 		} catch (Exception e) {

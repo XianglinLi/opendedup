@@ -29,6 +29,8 @@ public interface AbstractHashesMap {
 	 */
 	public abstract boolean containsKey(byte[] key) throws IOException;
 
+	public abstract long getFreeBlocks();
+
 	public abstract boolean put(ChunkData cm) throws IOException,
 			HashtableFullException;
 

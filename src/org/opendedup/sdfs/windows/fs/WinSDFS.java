@@ -213,7 +213,7 @@ public class WinSDFS implements DokanOperations {
 
 					log.debug("creating " + fileName);
 					MetaDataDedupFile mf = MetaFileStore.getMF(path);
-					mf.sync(true);
+					mf.sync();
 				} catch (Exception e) {
 					log.error("unable to create file " + path, e);
 					throw new DokanOperationException(ERROR_FILE_NOT_FOUND);
@@ -226,7 +226,7 @@ public class WinSDFS implements DokanOperations {
 				try {
 					log.debug("creating " + fileName);
 					MetaDataDedupFile mf = MetaFileStore.getMF(path);
-					mf.sync(true);
+					mf.sync();
 				} catch (Exception e) {
 					log.error("unable to create file " + path, e);
 					throw new DokanOperationException(ERROR_FILE_NOT_FOUND);
@@ -407,8 +407,8 @@ public class WinSDFS implements DokanOperations {
 		// log("[onSetFileTime] " + fileName);
 		File f = this.resolvePath(fileName);
 		MetaDataDedupFile mf = MetaFileStore.getMF(f.getPath());
-		mf.setLastAccessed(atime * 1000L, true);
-		mf.setLastModified(mtime * 1000L, true);
+		mf.setLastAccessed(atime * 1000L);
+		mf.setLastModified(mtime * 1000L);
 	}
 
 	@Override
@@ -428,7 +428,7 @@ public class WinSDFS implements DokanOperations {
 			}
 		}
 		File f = this.resolvePath(fileName);
-		if (!MetaFileStore.removeMetaFile(f.getPath(), true)) {
+		if (!MetaFileStore.removeMetaFile(f.getPath())) {
 			log.warn("unable to delete file " + f.getPath());
 			throw new DokanOperationException(ERROR_FILE_NOT_FOUND);
 		}
@@ -440,7 +440,7 @@ public class WinSDFS implements DokanOperations {
 			throws DokanOperationException {
 		// log("[onDeleteDirectory] " + path);
 		File f = resolvePath(path);
-		if (!MetaFileStore.removeMetaFile(f.getPath(), true)) {
+		if (!MetaFileStore.removeMetaFile(f.getPath())) {
 			log.debug("unable to delete folder " + f.getPath());
 			throw new DokanOperationException(WinError.ERROR_DIR_NOT_EMPTY);
 		}
@@ -456,7 +456,7 @@ public class WinSDFS implements DokanOperations {
 		try {
 			f = resolvePath(from);
 			MetaDataDedupFile mf = MetaFileStore.getMF(f.getPath());
-			mf.renameTo(this.mountedVolume + to, true);
+			mf.renameTo(this.mountedVolume + to);
 			DedupFileChannel ch = this.dedupChannels.get(arg3.handle);
 			if (ch != null) {
 				this.channelLock.lock();

@@ -2,7 +2,6 @@ package org.opendedup.collections;
 
 import java.io.File;
 
-
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -10,6 +9,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -21,7 +21,6 @@ import org.opendedup.logging.SDFSLogger;
 import org.opendedup.sdfs.Main;
 import org.opendedup.sdfs.filestore.ChunkData;
 import org.opendedup.sdfs.notification.SDFSEvent;
-import org.opendedup.sdfs.servers.HCServiceProxy;
 import org.opendedup.util.CommandLineProgressBar;
 import org.opendedup.util.NextPrime;
 import org.opendedup.util.StringUtils;
@@ -53,6 +52,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 	private long maxSz = 0;
 	// TODO change the kBufMazSize so it not reflective to the pageSize
 	private static final int kBufMaxSize = 10485760 / Main.chunkStorePageSize;
+	private final BitSet freeSlots = new BitSet();
 	private boolean firstGCRun = true;
 	private boolean flushing = false;
 	private SyncThread sth = null;
@@ -251,6 +251,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 		kRaf = new RandomAccessFile(fileName, this.fileParams);
 		// kRaf.setLength(ChunkMetaData.RAWDL * size);
 		kFc = (FileChannelImpl) kRaf.getChannel();
+		this.freeSlots.clear();
 		long start = System.currentTimeMillis();
 		int freeSl = 0;
 
@@ -285,6 +286,8 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 								.getLog()
 								.debug("found free slot at "
 										+ ((currentPos / raw.length) * Main.chunkStorePageSize));
+						this.addFreeSlot((currentPos / raw.length)
+								* Main.chunkStorePageSize);
 						freeSl++;
 					} else {
 						ChunkData cm = null;
@@ -299,7 +302,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 							long value = cm.getcPos();
 							if (cm.ismDelete()) {
 								// SDFSLogger.getLog().debug("chunk is deleted");
-								
+								this.addFreeSlot(cm.getcPos());
 								freeSl++;
 							} else {
 								boolean added = this.put(cm, false);
@@ -330,6 +333,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 		SDFSLogger.getLog().info(
 				"loaded [" + kSz + "] into the hashtable [" + this.fileName
 						+ "] free slots available are [" + freeSl
+						+ "] free slots added [" + this.freeSlots.cardinality()
 						+ "] end file position is [" + endPos + "]!");
 		this.loadEvent.endEvent("Finished Loading Hash Database in ["
 				+ (System.currentTimeMillis() - start) / 100 + "] seconds");
@@ -353,6 +357,16 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 			throw new IOException("hashtable [" + this.fileName + "] is close");
 		}
 		return this.getMap(key).containsKey(key);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see org.opendedup.collections.AbstractHashesMap#getFreeBlocks()
+	 */
+	@Override
+	public long getFreeBlocks() {
+		return this.freeSlots.cardinality();
 	}
 
 	@Override
@@ -438,9 +452,9 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 				// this.removingChunks = false;
 				SDFSLogger.getLog().info(
 						"Removed [" + rem + "] records. Free slots ["
-								+ HCServiceProxy.getFreeBlocks() + "]");
+								+ this.freeSlots.cardinality() + "]");
 				tEvt.endEvent("Removed [" + rem + "] records. Free slots ["
-						+ HCServiceProxy.getFreeBlocks() + "]");
+						+ this.freeSlots.cardinality() + "]");
 
 			}
 			return rem;
@@ -501,7 +515,35 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 		return added;
 	}
 
+	private ReentrantLock fslock = new ReentrantLock();
 
+	private long getFreeSlot() {
+		fslock.lock();
+		try {
+			int slot = this.freeSlots.nextSetBit(0);
+			if (slot != -1) {
+				this.freeSlots.clear(slot);
+				return ((long) slot * (long) Main.CHUNK_LENGTH);
+			} else
+				return slot;
+		} finally {
+			fslock.unlock();
+		}
+	}
+
+	private void addFreeSlot(long position) {
+		this.fslock.lock();
+		try {
+			int pos = (int) (position / Main.CHUNK_LENGTH);
+			if (pos >= 0)
+				this.freeSlots.set(pos);
+			else if (pos < 0) {
+				SDFSLogger.getLog().info("Position is less than 0 " + pos);
+			}
+		} finally {
+			this.fslock.unlock();
+		}
+	}
 
 	/*
 	 * (non-Javadoc)
@@ -524,6 +566,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 		// this.flushFullBuffer();
 		if (persist) {
 			if (!cm.recoverd) {
+				cm.setcPos(this.getFreeSlot());
 				cm.persistData(true);
 			}
 			added = this.getMap(cm.getHash()).put(cm.getHash(), cm.getcPos(),
@@ -539,7 +582,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 
 				}
 			} else {
-				//this.addFreeSlot(cm.getcPos());
+				this.addFreeSlot(cm.getcPos());
 				cm = null;
 			}
 		} else {
@@ -671,6 +714,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 									"error while writing buffer", e);
 						} finally {
 							if (cm.ismDelete()) {
+								this.addFreeSlot(cm.getcPos());
 								this.kSz--;
 							}
 							cm = null;
@@ -743,6 +787,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 									"error while writing buffer", e);
 						} finally {
 							if (cm.ismDelete()) {
+								this.addFreeSlot(cm.getcPos());
 								this.kSz--;
 							}
 							cm = null;
@@ -831,11 +876,6 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 
 	@Override
 	public void vanish() throws IOException {
-		vanish(true);
-	}
-
-	@Override
-	public void vanish(boolean propigateEvent) throws IOException {
 		// TODO Auto-generated method stub
 	}
 
@@ -872,6 +912,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 			kRaf = new RandomAccessFile(fileName, this.fileParams);
 			// kRaf.setLength(ChunkMetaData.RAWDL * size);
 			kFc = (FileChannelImpl) kRaf.getChannel();
+			this.freeSlots.clear();
 			sth = new SyncThread(this);
 		} finally {
 			this.arlock.unlock();
@@ -939,6 +980,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 			kRaf = new RandomAccessFile(fileName, this.fileParams);
 			// kRaf.setLength(ChunkMetaData.RAWDL * size);
 			kFc = (FileChannelImpl) kRaf.getChannel();
+			this.freeSlots.clear();
 			sth = new SyncThread(this);
 		} finally {
 			compacting = false;

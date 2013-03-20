@@ -1,3 +1,10 @@
+Version 1.2.2
+	Fixes:
+	* Fixed Unique block deletion for filebasedchunkstore
+	* Fixed volume freezing due to thread deadlock. Presented during rsync
+	Enhancements:
+	* 40% Read performance inprovement under NFS through better locking techniques and file caching
+	* Better file level locking under concurrent IO should allow for lower latency multi write to the same file
 Version 1.2.1
 	Fixes:
 	* Free space calculation was causing problems with new volumes in 1.2.0 not being able to be more than .95 full.

@@ -71,7 +71,7 @@ public class FDisk {
 	}
 
 	private void checkDedupFile(File mapFile) throws IOException {
-		LongByteArrayMap mp = new LongByteArrayMap(mapFile.getPath());
+		LongByteArrayMap mp = new LongByteArrayMap(mapFile.getPath(), "r");
 		long prevpos = 0;
 		try {
 			byte[] val = new byte[0];

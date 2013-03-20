@@ -171,14 +171,14 @@ public class SDFSCmds {
 					MetaDataDedupFile mf = MetaFileStore.getMF(f.getPath());
 					long val = Long.parseLong(valStr);
 					if (name.equalsIgnoreCase("user.sdfs.ActualBytesWritten")) {
-						mf.getIOMonitor().setActualBytesWritten(val, true);
+						mf.getIOMonitor().setActualBytesWritten(val);
 					} else if (name
 							.equalsIgnoreCase("user.sdfs.VirtualBytesWritten")) {
-						mf.getIOMonitor().setVirtualBytesWritten(val, true);
+						mf.getIOMonitor().setVirtualBytesWritten(val);
 					} else if (name.equalsIgnoreCase("user.sdfs.BytesRead")) {
-						mf.getIOMonitor().setBytesRead(val, true);
+						mf.getIOMonitor().setBytesRead(val);
 					} else if (name.equalsIgnoreCase("user.sdfs.DuplicateData")) {
-						mf.getIOMonitor().setDuplicateBlocks(val, true);
+						mf.getIOMonitor().setDuplicateBlocks(val);
 					}
 				}
 			}
@@ -314,7 +314,7 @@ public class SDFSCmds {
 	private String dedup(String srcPath, boolean dedup) {
 		File f = new File(this.mountedVolume + File.separator + srcPath);
 		try {
-			MetaFileStore.getMF(f.getPath()).setDedup(dedup, true);
+			MetaFileStore.getMF(f.getPath()).setDedup(dedup);
 			return "SUCCESS Dedup Success: set dedup to [" + srcPath + "]  ["
 					+ dedup + "]";
 		} catch (Exception e) {
