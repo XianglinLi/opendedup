@@ -16,7 +16,9 @@ import org.opendedup.collections.HashtableFullException;
  * 
  */
 public interface DedupFile {
-
+	
+	
+	public abstract void removeFromFlush(long pos);
 	/**
 	 * Creates a blank dedup file of a specific length
 	 * 

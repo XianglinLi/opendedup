@@ -49,18 +49,7 @@ public class FileChunkStore implements AbstractChunkStore {
 	private AbstractHashEngine hc = null;
 	private SyncThread th = null;
 	private RAFPool pool = null;
-	private static int cacheLength = 104857600 / Main.CHUNK_LENGTH;
-	@SuppressWarnings("serial")
-	private final transient LinkedHashMap<Long,ByteBuffer> localReadBuffers = new LinkedHashMap<Long,ByteBuffer>(
-			cacheLength *2,.75f, true) {
-
-
-		@Override
-	      protected boolean removeEldestEntry(Map.Entry<Long,ByteBuffer> eldest)
-	      {
-	            return size() >= cacheLength;
-	      }
-	};
+	
 
 	/**
 	 * 
@@ -262,17 +251,7 @@ public class FileChunkStore implements AbstractChunkStore {
 		if (this.closed)
 			throw new IOException("ChunkStore is closed");
 		// long time = System.currentTimeMillis();
-		ReadLock l = clLock.readLock();
-		l.lock();
-		ByteBuffer buf = null;
-		try {
-			buf = this.localReadBuffers.get(start);
-		}finally {
-			l.unlock();
-		}
-		if(buf != null) {
-			return buf.array();
-		}
+		
 
 		byte [] b = new byte[pageSize];
 		RandomAccessFile rf = pool.borrowObject();
@@ -288,13 +267,6 @@ public class FileChunkStore implements AbstractChunkStore {
 				pool.returnObject(rf);
 			} catch (Exception e) {
 			}
-		}
-		WriteLock wl = clLock.writeLock();
-		wl.lock();
-		try {
-			localReadBuffers.put(start, ByteBuffer.wrap(b));
-		}finally {
-			wl.unlock();
 		}
 		return b;
 	}
