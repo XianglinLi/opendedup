@@ -181,6 +181,16 @@ public class WritableCacheBuffer extends DedupChunk {
 			this.lock.unlock();
 		}
 	}
+	
+	public byte[] getReadChunk() throws IOException, BufferClosedException {
+		this.lock.lock();
+		try {
+			this.initBuffer();
+			return buf;
+		} finally {
+			this.lock.unlock();
+		}
+	}
 
 	/**
 	 * Writes to the given target array
@@ -283,7 +293,6 @@ public class WritableCacheBuffer extends DedupChunk {
 			if (this.closed || this.flushing) {
 				this.closed = false;
 				this.flushing = false;
-				df.putBufferIntoWrite(this);
 			}
 		} catch (Exception e) {
 			SDFSLogger.getLog().fatal("Error while opening",e);

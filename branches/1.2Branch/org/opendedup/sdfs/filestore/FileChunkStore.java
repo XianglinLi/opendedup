@@ -2,12 +2,18 @@ package org.opendedup.sdfs.filestore;
 
 import java.io.File;
 
+
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 import org.bouncycastle.util.Arrays;
 import org.opendedup.hashing.AbstractHashEngine;
@@ -42,6 +48,19 @@ public class FileChunkStore implements AbstractChunkStore {
 	private FileChannel iterFC = null;
 	private AbstractHashEngine hc = null;
 	private SyncThread th = null;
+	private RAFPool pool = null;
+	private static int cacheLength = 104857600 / Main.CHUNK_LENGTH;
+	@SuppressWarnings("serial")
+	private final transient LinkedHashMap<Long,ByteBuffer> localReadBuffers = new LinkedHashMap<Long,ByteBuffer>(
+			cacheLength *2,.75f, true) {
+
+
+		@Override
+	      protected boolean removeEldestEntry(Map.Entry<Long,ByteBuffer> eldest)
+	      {
+	            return size() >= cacheLength;
+	      }
+	};
 
 	/**
 	 * 
@@ -61,6 +80,7 @@ public class FileChunkStore implements AbstractChunkStore {
 			this.name = "chunks";
 			p = f.toPath();
 			chunkDataWriter = new RandomAccessFile(f, "rw");
+			pool = new RAFPool(f,10);
 			this.currentLength = chunkDataWriter.length();
 			this.closed = false;
 			fc = chunkDataWriter.getChannel();
@@ -84,6 +104,7 @@ public class FileChunkStore implements AbstractChunkStore {
 			this.name = "chunks";
 			p = f.toPath();
 			chunkDataWriter = new RandomAccessFile(f, "rw");
+			pool = new RAFPool(f,10);
 			this.currentLength = chunkDataWriter.length();
 			this.closed = false;
 			fc = chunkDataWriter.getChannel();
@@ -100,6 +121,10 @@ public class FileChunkStore implements AbstractChunkStore {
 	 * @see com.annesam.sdfs.filestore.AbstractChunkStore#closeStore()
 	 */
 	public void closeStore() {
+		try {
+			pool.close();
+		} catch (Exception e) {
+		}
 
 		try {
 			fc.force(true);
@@ -209,46 +234,69 @@ public class FileChunkStore implements AbstractChunkStore {
 			throws IOException {
 		if (this.closed)
 			throw new IOException("ChunkStore is closed");
-		ByteBuffer buf = null;
+		RandomAccessFile rf = pool.borrowObject();
 		try {
 			if (Main.chunkStoreEncryptionEnabled)
 				chunk = EncryptUtils.encrypt(chunk);
-			buf = ByteBuffer.wrap(chunk);
-			fc.write(buf, start);
+			rf.seek(start);
+			rf.write(chunk);
 
 		} catch (Exception e) {
 			SDFSLogger.getLog().fatal(
 					"unable to write data at position " + start, e);
 			throw new IOException("unable to write data at position " + start);
 		} finally {
-			buf = null;
+			try {
+				pool.returnObject(rf);
+			} catch (Exception e) {
+			}
 			hash = null;
 			chunk = null;
 			len = 0;
 			start = 0;
 		}
 	}
-
+	private static final ReentrantReadWriteLock clLock = new ReentrantReadWriteLock();
 	@Override
 	public byte[] getChunk(byte[] hash, long start, int len) throws IOException {
 		if (this.closed)
 			throw new IOException("ChunkStore is closed");
 		// long time = System.currentTimeMillis();
-
-		ByteBuffer fbuf = ByteBuffer.wrap(new byte[pageSize]);
-
+		ReadLock l = clLock.readLock();
+		l.lock();
+		ByteBuffer buf = null;
 		try {
-			fc.read(fbuf, start);
+			buf = this.localReadBuffers.get(start);
+		}finally {
+			l.unlock();
+		}
+		if(buf != null) {
+			return buf.array();
+		}
+
+		byte [] b = new byte[pageSize];
+		RandomAccessFile rf = pool.borrowObject();
+		try {
+			rf.seek(start);
+			rf.read(b);
 		} catch (Exception e) {
 			SDFSLogger.getLog().error(
 					"unable to fetch chunk at position " + start, e);
 			throw new IOException(e);
 		} finally {
 			try {
+				pool.returnObject(rf);
 			} catch (Exception e) {
 			}
 		}
-		return fbuf.array();
+		WriteLock wl = clLock.writeLock();
+		wl.lock();
+		try {
+			localReadBuffers.put(start, ByteBuffer.wrap(b));
+		}finally {
+			wl.unlock();
+		}
+		return b;
 	}
 
 	@Override
