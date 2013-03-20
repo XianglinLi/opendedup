@@ -123,6 +123,19 @@ public class DedupChunk implements java.io.Serializable {
 			this.lock.unlock();
 		}
 	}
+	
+	public byte[] getReadChunk() throws IOException, BufferClosedException {
+		this.lock.lock();
+		try {
+			if (data != null)
+				return data;
+			else
+				return HCServiceProxy.fetchChunk(hash);
+		} finally {
+			this.lock.unlock();
+		}
+	}
+	
 
 	/**
 	 * sets the chunk as writable

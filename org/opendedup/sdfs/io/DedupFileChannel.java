@@ -276,7 +276,7 @@ public class DedupFileChannel {
 							writeBuffer = df.getWriteBuffer(filePos, newBuf);
 							writeBuffer.write(b, startPos);
 						} catch (BufferClosedException e) {
-							SDFSLogger.getLog().debug("strying to write again");
+							SDFSLogger.getLog().debug("trying to write again");
 							writeBuffer = null;
 						}
 					}
@@ -428,43 +428,23 @@ public class DedupFileChannel {
 			int read = 0;
 			while (bytesLeft > 0) {
 				DedupChunk readBuffer = null;
-				try {
-					readBuffer = df.getReadBuffer(currentLocation);
-				}  catch (FileClosedException e) {
-					SDFSLogger.getLog().warn(
-							mf.getPath() + " is closed but still writing");
-					this.closeLock.lock();
-					try {
-						df.registerChannel(this);
-						this.closed = false;
-						readBuffer = df.getReadBuffer(currentLocation);
-					} finally {
-						this.closeLock.unlock();
-					}
-				}
-				catch (Exception e) {
-					// break;
-					SDFSLogger.getLog().error(
-							"Error reading file at [" + filePos + "]", e);
-					throw new IOException("unable to read at [" + filePos
-							+ "] because [" + e.toString() + "]"
-
-					);
-				}
-				int startPos = (int) (currentLocation - readBuffer
-						.getFilePosition());
-				int endPos = startPos + bytesLeft;
+				
+				
 				try {
 					byte[] _rb = null;
 					while (_rb == null) {
 						try {
-							_rb = readBuffer.getChunk();
+							readBuffer = df.getReadBuffer(currentLocation);
+							_rb = readBuffer.getReadChunk();
 						} catch (BufferClosedException e) {
 							_rb = null;
 							readBuffer = df.getReadBuffer(currentLocation);
 							SDFSLogger.getLog().info("trying to read again");
 						}
 					}
+					int startPos = (int) (currentLocation - readBuffer
+							.getFilePosition());
+					int endPos = startPos + bytesLeft;
 					if ((endPos) <= readBuffer.getLength()) {
 						buf.put(_rb, startPos, bytesLeft);
 						mf.getIOMonitor().addBytesRead(bytesLeft);
@@ -494,9 +474,7 @@ public class DedupFileChannel {
 					SDFSLogger.getLog().fatal("Error while reading buffer ", e);
 					SDFSLogger.getLog().fatal(
 							"Error Reading Buffer " + readBuffer.getHash()
-									+ " start position [" + startPos + "] "
-									+ "end position [" + endPos
-									+ "] bytes left [" + bytesLeft
+									+ " start position [" + filePos + "]  bytes left [" + bytesLeft
 									+ "] filePostion [" + currentLocation
 									+ "] ");
 					throw new IOException("Error reading buffer");
