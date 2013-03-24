@@ -2,6 +2,7 @@ package org.opendedup.sdfs.io;
 
 import java.io.File;
 
+
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -9,8 +10,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.commons.collections.map.AbstractLinkedMap;
-import org.apache.commons.collections.map.LRUMap;
 import org.opendedup.collections.HashtableFullException;
 import org.opendedup.collections.LargeLongByteArrayMap;
 import org.opendedup.collections.LongByteArrayMap;
@@ -895,9 +894,9 @@ public class SparseDedupFile implements DedupFile {
 				this.chunkStore = new LargeLongByteArrayMap(chunkStorePath, -1,
 						Main.CHUNK_LENGTH);
 				this.bdb = new LongByteArrayMap(this.databasePath);
-				DedupFileStore.addOpenDedupFile(this);
 				this.closed = false;
 			}
+			DedupFileStore.addOpenDedupFile(this);
 		} catch (IOException e) {
 			throw e;
 		} finally {

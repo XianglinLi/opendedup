@@ -34,7 +34,7 @@ public class DedupFileStore {
 	 * maxOpenFiles parameter
 	 */
 	private static ConcurrentLinkedHashMap<String, DedupFile> openFile = new Builder<String, DedupFile>()
-			.concurrencyLevel(Main.writeThreads)
+			.concurrencyLevel(72)
 			.maximumWeightedCapacity(Main.maxOpenFiles - 1)
 			.listener(new EvictionListener<String, DedupFile>() {
 				// This method is called just after a new entry has been
@@ -76,6 +76,7 @@ public class DedupFileStore {
 				DedupFile df = null;
 				if (mf.getDfGuid() == null) {
 					getDFLock.lock();
+					SDFSLogger.getLog().info("in create df for " + mf.getPath());
 					try {
 						if (mf.getDfGuid() == null) {
 							df = new SparseDedupFile(mf);
@@ -99,11 +100,15 @@ public class DedupFileStore {
 					df = openFile.get(mf.getDfGuid());
 					if (df == null) {
 						getDFLock.lock();
+						try {
+							SDFSLogger.getLog().info("in add df for " + mf.getPath());
 						df = openFile.get(mf.getDfGuid());
 						if (df == null) {
 							df = new SparseDedupFile(mf);
 						}
-						getDFLock.unlock();
+						}finally {
+							getDFLock.unlock();
+						}
 					}
 				}
 				if (df == null) {
@@ -129,9 +134,6 @@ public class DedupFileStore {
 	public static void addOpenDedupFile(DedupFile df) throws IOException {
 		if (!closing) {
 			SDFSLogger.getLog().debug("adding dedupfile");
-			if (openFile.size() >= Main.maxOpenFiles)
-				throw new IOException("maximum number of files reached ["
-						+ Main.maxOpenFiles + "]. Too many open files");
 			openFile.put(df.getGUID(), df);
 			SDFSLogger.getLog().debug(
 					"dedupfile cache size is " + openFile.size());

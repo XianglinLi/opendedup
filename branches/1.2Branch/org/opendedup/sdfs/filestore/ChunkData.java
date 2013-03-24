@@ -57,6 +57,12 @@ public class ChunkData {
 		this.cPos = cPos;
 		this.hash = hash;
 	}
+	
+	public ChunkData(long cPos,byte [] data,boolean cache) { 
+		this.chunk = data;
+		this.cPos = cPos;
+	}
+	
 
 	public ChunkData(byte[] rawData) {
 		ByteBuffer buf = ByteBuffer.wrap(rawData);

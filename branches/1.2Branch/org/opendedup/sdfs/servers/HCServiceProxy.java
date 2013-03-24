@@ -1,25 +1,16 @@
 package org.opendedup.sdfs.servers;
 
 import java.io.IOException;
+
 import java.nio.ByteBuffer;
 
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 import jonelo.jacksum.adapt.org.bouncycastle.util.Arrays;
 
-import org.apache.commons.collections.map.AbstractLinkedMap;
-import org.apache.commons.collections.map.LRUMap;
 import org.opendedup.collections.HashtableFullException;
-import org.opendedup.hashing.HashFunctionPool;
 import org.opendedup.logging.SDFSLogger;
 import org.opendedup.sdfs.Main;
 import org.opendedup.sdfs.filestore.AbstractChunkStore;
@@ -51,31 +42,6 @@ public class HCServiceProxy {
 			}
 
 			).build();
-	/*
-	private static ConcurrentLinkedHashMap<ByteBuffer, ByteBuffer> localReadBuffers = new Builder<ByteBuffer, ByteBuffer>()
-			.concurrencyLevel(Main.writeThreads).initialCapacity(cacheLength)
-			.maximumWeightedCapacity(cacheLength + 1)
-			.listener(new EvictionListener<ByteBuffer, ByteBuffer>() {
-				// This method is called just after a new entry has been
-				// added
-				@Override
-				public void onEviction(ByteBuffer key, ByteBuffer writeBuffer) {
-				}
-			}
-
-			).build();
-			*/
-	@SuppressWarnings("serial")
-	private static final transient LinkedHashMap<ByteArrayWrapper,ByteArrayWrapper> localReadBuffers = new LinkedHashMap<ByteArrayWrapper,ByteArrayWrapper>(
-			cacheLength *2,1.1f, true) {
-
-
-		@Override
-	      protected boolean removeEldestEntry(Map.Entry<ByteArrayWrapper,ByteArrayWrapper> eldest)
-	      {
-	            return size() >= cacheLength;
-	      }
-	};
 
 	private static HashMap<String, byte[]> readingBuffers = new HashMap<String, byte[]>();
 	// private static LRUMap existingHashes = new
@@ -287,34 +253,13 @@ public class HCServiceProxy {
 	public static boolean cacheContains(String hashStr) {
 		return readBuffers.containsKey(hashStr);
 	}
-	private static final ReentrantReadWriteLock clLock = new ReentrantReadWriteLock();
+	
 	public static byte[] fetchChunk(byte[] hash) throws IOException {
 		
 		if (Main.chunkStoreLocal) {
-			/*
-			ByteArrayWrapper key = new ByteArrayWrapper(hash);
-			ReadLock l = clLock.readLock();
-			l.lock();
-			try {
-				ByteArrayWrapper wrap = localReadBuffers.get(key);
-				if(wrap != null)
-					return wrap.data;
-			}finally {
-				l.unlock();
-			}
-			*/
 			
 				HashChunk hc = HCServiceProxy.hcService.fetchChunk(hash);
 				byte [] data = hc.getData();
-				/*
-				ByteArrayWrapper val = new ByteArrayWrapper(data,hash);
-				WriteLock wl = clLock.writeLock();
-				wl.lock();
-				try {
-					localReadBuffers.put(key, val);
-				}finally {
-					wl.unlock();
-				}*/
 			return data;
 		} else {
 			String hashStr = StringUtils.getHexString(hash);
