@@ -53,7 +53,6 @@ public class VolumeConfigWriter {
 	int system_read_cache = 1000;
 	short chunk_size = 128;
 	int max_file_write_buffers = 24;
-	int file_read_cache = 5;
 	int max_open_files = 1024;
 	int meta_file_cache = 1024;
 	String filePermissions = "0644";
@@ -67,6 +66,7 @@ public class VolumeConfigWriter {
 	String chunk_store_hashdb_location = null;
 	boolean chunk_store_pre_allocate = false;
 	long chunk_store_allocation_size = 0;
+	int chunk_store_cache_size = Main.cacheSize;
 	Short chunk_read_ahead_pages = 4;
 	String chunk_gc_schedule = "0 0 0/4 * * ?";
 	String fdisk_schedule = "0 59 23 * * ?";
@@ -78,8 +78,6 @@ public class VolumeConfigWriter {
 	String cloudSecretKey = "";
 	String cloudBucketName = "";
 	boolean cloudCompress = Main.cloudCompress;
-	int chunk_store_read_cache = Main.chunkStorePageCache;
-	int chunk_store_dirty_timeout = Main.chunkStoreDirtyCacheTimeout;
 	String chunk_store_encryption_key = PassPhrase.getNext();
 	boolean chunk_store_encrypt = false;
 
@@ -198,10 +196,6 @@ public class VolumeConfigWriter {
 			this.max_open_files = Integer.parseInt(cmd
 					.getOptionValue("io-max-open-files"));
 		}
-		if (cmd.hasOption("io-file-read-cache")) {
-			this.file_read_cache = Integer.parseInt(cmd
-					.getOptionValue("io-file-read-cache"));
-		}
 		if (cmd.hasOption("io-meta-file-cache")) {
 			this.meta_file_cache = Integer.parseInt(cmd
 					.getOptionValue("io-meta-file-cache"));
@@ -228,6 +222,10 @@ public class VolumeConfigWriter {
 					.getOptionValue("chunk-store-hashdb-location");
 		}
 		if (cmd.hasOption("chunk-store-hashdb-class")) {
+			this.hash_db_class = cmd
+					.getOptionValue("chunk-store-hashdb-class");
+		}
+		if (cmd.hasOption("chunk-store-cache-size")) {
 			this.hash_db_class = cmd
 					.getOptionValue("chunk-store-hashdb-class");
 		}
@@ -258,21 +256,15 @@ public class VolumeConfigWriter {
 			this.azureEnabled = Boolean.parseBoolean(cmd
 					.getOptionValue("azure-enabled"));
 		}
-		if (cmd.hasOption("chunk-store-read-cache")) {
-			this.chunk_store_read_cache = Integer.parseInt(cmd
-					.getOptionValue("chunk-store-read-cache"));
-		}
 		if (cmd.hasOption("chunk-store-encrypt")) {
 			this.chunk_store_encrypt = Boolean.parseBoolean(cmd
 					.getOptionValue("chunk-store-encrypt"));
 		}
-		if (cmd.hasOption("chunk-store-dirty-timeout")) {
-			this.chunk_store_dirty_timeout = Integer.parseInt(cmd
-					.getOptionValue("chunk-store-dirty-timeout"));
-		}
 		if (cmd.hasOption("gc-class")) {
 			this.gc_class = cmd.getOptionValue("gc-class");
 		}
+		if(cmd.hasOption("chunk-store-read-cache"))
+			this.chunk_store_cache_size = Integer.parseInt(cmd.getOptionValue("chunk-store-read-cache")) * 1024 *1024;
 		if (this.awsEnabled) {
 			if (cmd.hasOption("cloud-secret-key")
 					&& cmd.hasOption("cloud-access-key")
@@ -473,20 +465,14 @@ public class VolumeConfigWriter {
 		io.setAttribute("log-level", "1");
 		io.setAttribute("chunk-size", Short.toString(this.chunk_size));
 		io.setAttribute("dedup-files", Boolean.toString(this.dedup_files));
-		io.setAttribute("file-read-cache",
-				Integer.toString(this.file_read_cache));
 		io.setAttribute("max-file-inactive", "900");
 		io.setAttribute("max-file-write-buffers",
 				Integer.toString(this.max_file_write_buffers));
 		io.setAttribute("max-open-files", Integer.toString(this.max_open_files));
-		io.setAttribute("meta-file-cache",
-				Integer.toString(this.meta_file_cache));
 		io.setAttribute("multi-read-timeout",
 				Integer.toString(this.multi_read_timeout));
 		io.setAttribute("safe-close", Boolean.toString(this.safe_close));
 		io.setAttribute("safe-sync", Boolean.toString(this.safe_sync));
-		io.setAttribute("system-read-cache",
-				Integer.toString(this.system_read_cache));
 		io.setAttribute("write-threads", Integer.toString(this.write_threads));
 		io.setAttribute("claim-hash-schedule", this.fdisk_schedule);
 		io.setAttribute("hash-type", this.hashType);
@@ -522,20 +508,14 @@ public class VolumeConfigWriter {
 		cs.setAttribute("eviction-age",
 				Integer.toString(this.remove_if_older_than));
 		cs.setAttribute("gc-class", this.gc_class);
-		cs.setAttribute("read-ahead-pages",
-				Short.toString(this.chunk_read_ahead_pages));
 		cs.setAttribute("chunk-store", this.chunk_store_data_location);
 		cs.setAttribute("encrypt", Boolean.toString(this.chunk_store_encrypt));
 		cs.setAttribute("encryption-key", this.chunk_store_encryption_key);
-		cs.setAttribute("chunk-store-read-cache",
-				Integer.toString(this.chunk_store_read_cache));
 		cs.setAttribute("max-repl-batch-sz", Integer.toString(Main.MAX_REPL_BATCH_SZ));
-		cs.setAttribute("chunk-store-dirty-timeout",
-				Integer.toString(this.chunk_store_dirty_timeout));
 		cs.setAttribute("hash-db-store", this.chunk_store_hashdb_location);
 		cs.setAttribute("chunkstore-class", this.chunk_store_class);
 		cs.setAttribute("hashdb-class", this.hash_db_class);
-		
+		cs.setAttribute("cache-size", Integer.toString(this.chunk_store_cache_size));
 		cs.setAttribute("compress", Boolean.toString(this.cloudCompress));
 		Element network = xmldoc.createElement("network");
 		network.setAttribute("hostname", this.list_ip);
@@ -708,16 +688,6 @@ public class VolumeConfigWriter {
 								+ "basis by using the command \"setfattr -n user.cmd.dedupAll -v 556:false <path to file on sdfs volume>\"\n Defaults to: \n true")
 				.hasArg().withArgName("true|false").create());
 		options.addOption(OptionBuilder
-				.withLongOpt("io-multi-read-timeout")
-				.withDescription(
-						"Timeout to try to read from cache before it request data from the chunkstore. \n Defaults to: \n 1000")
-				.hasArg().withArgName("NUMBER").create());
-		options.addOption(OptionBuilder
-				.withLongOpt("io-system-read-cache")
-				.withDescription(
-						"Size, in number of chunks, that read chunks will be cached into memory. \n Defaults to: \n 1000")
-				.hasArg().withArgName("NUMBER").create());
-		options.addOption(OptionBuilder
 				.withLongOpt("io-chunk-size")
 				.withDescription(
 						"The unit size, in kB, of chunks stored. Set this to 4 if you would like to dedup VMDK files inline.\n Defaults to: \n 128")
@@ -815,22 +785,10 @@ public class VolumeConfigWriter {
 								+ File.separator + "hdb").hasArg()
 				.withArgName("PATH").create());
 		options.addOption(OptionBuilder
-				.withLongOpt("chunk-store-pre-allocate")
-				.withDescription(
-						"Pre-allocate the chunk store if true."
-								+ " \nDefaults to: \n false").hasArg()
-				.withArgName("true|false").create());
-		options.addOption(OptionBuilder
 				.withLongOpt("chunkstore-class")
 				.withDescription(
 						"The class for the specific chunk store to be used. \n Defaults to org.opendedup.sdfs.filestore.FileChunkStore")
 				.hasArg().withArgName("Class Name").create());
-		options.addOption(OptionBuilder
-				.withLongOpt("chunk-read-ahead-pages")
-				.withDescription(
-						"The number of pages to read ahead when doing a disk read on the chunk store."
-								+ " \nDefaults to: \n 128/io-chunk-size or 1 if greater than 128")
-				.hasArg().withArgName("NUMBER").create());
 		options.addOption(OptionBuilder
 				.withLongOpt("chunk-store-gc-schedule")
 				.withDescription(
@@ -874,7 +832,7 @@ public class VolumeConfigWriter {
 				.withDescription(
 						"The size in MB of the Dedup Storeage Engine's read cache. Its useful to set this if you have high number of reads"
 								+ " for AWS/Cloud storage "
-								+ "This . \n Defaults to: \n 5MB").hasArg()
+								+ "This . \n Defaults to: \n 10MB").hasArg()
 				.withArgName("Megabytes").create());
 		options.addOption(OptionBuilder
 				.withLongOpt("chunk-store-encrypt")
@@ -883,13 +841,6 @@ public class VolumeConfigWriter {
 								+ " For AWS this is a good option to enable. The default for this is"
 								+ " false").hasArg().withArgName("true|false")
 				.create());
-		options.addOption(OptionBuilder
-				.withLongOpt("chunk-store-dirty-timeout")
-				.withDescription(
-						"The timeout, in milliseconds, for a previous read for the same chunk to finish within the Dedup Storage Engine. "
-								+ "For AWS with slow links you may want to set this to a higher number. The default for this is"
-								+ " 1000 ms.").hasArg()
-				.withArgName("Milliseconds").create());
 		options.addOption(OptionBuilder
 				.withLongOpt("aws-enabled")
 				.withDescription(

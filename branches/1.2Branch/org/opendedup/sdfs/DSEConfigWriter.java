@@ -52,12 +52,10 @@ public class DSEConfigWriter {
 	boolean chunk_store_local = true;
 	String chunk_store_data_location = null;
 	String chunk_store_hashdb_location = null;
-	boolean chunk_store_pre_allocate = false;
 	boolean use_udp = false;
 	int network_port = 2222;
 	String list_ip = "0.0.0.0";
 	long chunk_store_allocation_size = 0;
-	Short chunk_read_ahead_pages = 4;
 	short chunk_size = 128;
 	String chunk_gc_schedule = "0 0 0/4 * * ?";
 	int remove_if_older_than = 6;
@@ -66,8 +64,6 @@ public class DSEConfigWriter {
 	String cloudAccessKey = "";
 	String cloudSecretKey = "";
 	String cloudBucketName = "";
-	int chunk_store_read_cache = Main.chunkStorePageCache;
-	int chunk_store_dirty_timeout = Main.chunkStoreDirtyCacheTimeout;
 	String chunk_store_encryption_key = PassPhrase.getNext();
 	boolean chunk_store_encrypt = false;
 	boolean cloudCompress = Main.cloudCompress;
@@ -76,6 +72,7 @@ public class DSEConfigWriter {
 	String upstreamHost = null;
 	int upstreamPort = 2222;
 	String upstreamPassword = "admin";
+	int chunk_store_cache_size = Main.cacheSize;
 
 	public void parseCmdLine(String[] args) throws Exception {
 		CommandLineParser parser = new PosixParser();
@@ -116,20 +113,6 @@ public class DSEConfigWriter {
 			this.chunk_store_hashdb_location = cmd
 					.getOptionValue("hashdb-location");
 		}
-		if (cmd.hasOption("pre-allocate")) {
-			this.chunk_store_pre_allocate = Boolean.parseBoolean(cmd
-					.getOptionValue("pre-allocate"));
-		}
-		if (cmd.hasOption("read-ahead-pages")) {
-			this.chunk_read_ahead_pages = Short.parseShort(cmd
-					.getOptionValue("read-ahead-pages"));
-		} else {
-			if (this.chunk_size < 32) {
-				this.chunk_read_ahead_pages = (short) (32 / this.chunk_size);
-			} else {
-				this.chunk_read_ahead_pages = 1;
-			}
-		}
 		if (cmd.hasOption("aws-enabled")) {
 			this.awsEnabled = Boolean.parseBoolean(cmd
 					.getOptionValue("aws-enabled"));
@@ -138,17 +121,9 @@ public class DSEConfigWriter {
 			this.azureEnabled = Boolean.parseBoolean(cmd
 					.getOptionValue("aws-enabled"));
 		}
-		if (cmd.hasOption("read-cache")) {
-			this.chunk_store_read_cache = Integer.parseInt(cmd
-					.getOptionValue("read-cache"));
-		}
 		if (cmd.hasOption("encrypt")) {
 			this.chunk_store_encrypt = Boolean.parseBoolean(cmd
 					.getOptionValue("encrypt"));
-		}
-		if (cmd.hasOption("dirty-timeout")) {
-			this.chunk_store_dirty_timeout = Integer.parseInt(cmd
-					.getOptionValue("dirty-timeout"));
 		}
 		if (this.awsEnabled) {
 			if (cmd.hasOption("cloud-secret-key")
@@ -221,6 +196,8 @@ public class DSEConfigWriter {
 			this.use_udp = Boolean.parseBoolean(cmd
 					.getOptionValue("enable-udp"));
 		}
+		if(cmd.hasOption("dse-read-cache"))
+			this.chunk_store_cache_size = Integer.parseInt(cmd.getOptionValue("dse-read-cache")) * 1024 *1024;
 		if (cmd.hasOption("listen-ip")) {
 			this.list_ip = cmd.getOptionValue("listen-ip");
 		}
@@ -298,22 +275,15 @@ public class DSEConfigWriter {
 		Element cs = xmldoc.createElement("chunk-store");
 
 		cs.setAttribute("page-size", Integer.toString(this.chunk_size * 1024));
-		cs.setAttribute("pre-allocate",
-				Boolean.toString(this.chunk_store_pre_allocate));
 		cs.setAttribute("allocation-size",
 				Long.toString(this.chunk_store_allocation_size));
 		cs.setAttribute("max-repl-batch-sz", Integer.toString(Main.MAX_REPL_BATCH_SZ));
 		cs.setAttribute("chunk-gc-schedule", this.chunk_gc_schedule);
 		cs.setAttribute("eviction-age",
 				Integer.toString(this.remove_if_older_than));
-		cs.setAttribute("read-ahead-pages",
-				Short.toString(this.chunk_read_ahead_pages));
 		cs.setAttribute("encrypt", Boolean.toString(this.chunk_store_encrypt));
 		cs.setAttribute("encryption-key", this.chunk_store_encryption_key);
-		cs.setAttribute("chunk-store-read-cache",
-				Integer.toString(this.chunk_store_read_cache));
-		cs.setAttribute("chunk-store-dirty-timeout",
-				Integer.toString(this.chunk_store_dirty_timeout));
+		cs.setAttribute("cache-size", Integer.toString(this.chunk_store_cache_size));
 		cs.setAttribute("hash-type", this.hashType);
 		if (this.awsEnabled) {
 			Element aws = xmldoc.createElement("aws");
@@ -392,18 +362,6 @@ public class DSEConfigWriter {
 								+ File.separator + "hdb").hasArg()
 				.withArgName("PATH").create());
 		options.addOption(OptionBuilder
-				.withLongOpt("pre-allocate")
-				.withDescription(
-						"Pre-allocate the chunk store if true."
-								+ " \nDefaults to: \n false").hasArg()
-				.withArgName("true|false").create());
-		options.addOption(OptionBuilder
-				.withLongOpt("read-ahead-pages")
-				.withDescription(
-						"The number of pages to read ahead when doing a disk read on the chunk store."
-								+ " \nDefaults to: \n 128/io-chunk-size or 1 if greater than 128")
-				.hasArg().withArgName("NUMBER").create());
-		options.addOption(OptionBuilder
 				.withLongOpt("gc-schedule")
 				.withDescription(
 						"The schedule, in cron format, to check for unclaimed chunks within the Dedup Storage Engine. "
@@ -422,11 +380,11 @@ public class DSEConfigWriter {
 								+ "This . \n Defaults to: \n The size of the Volume")
 				.hasArg().withArgName("BYTES").create());
 		options.addOption(OptionBuilder
-				.withLongOpt("read-cache")
+				.withLongOpt("dse-read-cache")
 				.withDescription(
 						"The size in MB of the Dedup Storeage Engine's read cache. Its useful to set this if you have high number of reads"
 								+ " for AWS/Cloud storage "
-								+ "This . \n Defaults to: \n 5MB").hasArg()
+								+ "This . \n Defaults to: \n 10MB").hasArg()
 				.withArgName("Megabytes").create());
 		options.addOption(OptionBuilder
 				.withLongOpt("hash-type")

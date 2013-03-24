@@ -45,6 +45,7 @@ public class Main {
 	public static boolean runCompact = false;
 	public static boolean forceCompact = false;
 	public static int MAX_REPL_BATCH_SZ = 128;
+	public static int cacheSize = 104857600;
 	
 	public static SDFSEvent mountEvent = null;
 	
@@ -180,7 +181,7 @@ public class Main {
 	 * The number of chunks to keep in memory on the client for reading. The
 	 * chunks are cached in an LRU hash table. This is used on the client.
 	 */
-	public static int systemReadCacheSize = 5000;
+	//public static int systemReadCacheSize = 5000;
 	/**
 	 * The maximum number of writable chunks @see
 	 * com.annesam.sdfs.io.WritableCacheBuffer to keep in memory for a specific
@@ -356,21 +357,10 @@ public class Main {
 	public static int multiReadTimeout = 1000;
 
 	/**
-	 * Pre-Allocates space for the TC datables on the chunk store. This is
-	 * specified per hash store and not for all hashes held. Typically this
-	 * number should be (maximum number of hashes held)/256 . Setting this too
-	 * high will impact initial storage needed to preallocate space for the TC
-	 * databases. Setting this number too low will impact performance. The total
-	 * number of hashes needed can be computed by (expected total
-	 * capacity)/(average chunk size). This is set on the chunk store.
-	 */
-	public static int entriesPerDB = 30000000;
-
-	/**
 	 * Determines whether the chunk store will be pre-allocated or not.
 	 */
 
-	public static boolean preAllocateChunkStore = true;
+	//public static boolean preAllocateChunkStore = true;
 
 	/**
 	 * PreAllocates the size of the Dedup Storage Engine
@@ -387,23 +377,6 @@ public class Main {
 	 * as the Chunk Length used on the client side.
 	 */
 	public static int chunkStorePageSize = 4096;
-
-	/**
-	 * The number of pages to read ahead during a normal read. This will usually
-	 * speed up reads quite a bit.
-	 */
-	public static int chunkStoreReadAheadPages = 4;
-
-	/**
-	 * The size (MB) of pages (HashChunks) to cache for reading.
-	 */
-	public static int chunkStorePageCache = 5;
-
-	/**
-	 * The time in milliseconds for a page cache to timeout while waiting for a
-	 * chunck to be read.
-	 */
-	public static int chunkStoreDirtyCacheTimeout = 1000;
 
 	/**
 	 * If the Dedup Storage Engine is remote or local
@@ -425,7 +398,7 @@ public class Main {
 	 * 
 	 * @see org.opendedup.sdfs.FDISKJob
 	 */
-	public static String fDkiskSchedule = "0 0 0/1 * * ?";
+	public static String fDkiskSchedule = "0 59 23 * * ?";
 	/**
 	 * Remove chunks schedule
 	 * 
