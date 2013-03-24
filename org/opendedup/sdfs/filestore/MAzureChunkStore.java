@@ -4,11 +4,14 @@ import java.io.ByteArrayInputStream;
 
 
 
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import org.bouncycastle.util.Arrays;
 import java.util.HashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.opendedup.hashing.HashFunctionPool;
@@ -20,6 +23,9 @@ import org.opendedup.util.PassPhrase;
 import org.opendedup.util.StringUtils;
 import org.w3c.dom.Element;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.microsoft.windowsazure.services.blob.client.CloudBlobClient;
 import com.microsoft.windowsazure.services.blob.client.CloudBlobContainer;
 import com.microsoft.windowsazure.services.blob.client.CloudBlockBlob;
@@ -45,6 +51,47 @@ public class MAzureChunkStore implements AbstractChunkStore {
 	boolean encrypt = false;
 	private long currentLength = 0L;
 	private static final int pageSize = Main.chunkStorePageSize;
+	private int cacheSize = 104857600 / Main.CHUNK_LENGTH;
+	
+	LoadingCache<String, byte []> chunks = CacheBuilder.newBuilder()
+			.maximumSize(cacheSize).concurrencyLevel(72)
+			.build(new CacheLoader<String, byte []>() {
+				public byte [] load(String hashString) throws IOException {
+					SDFSLogger.getLog().debug("getting hash " + hashString);
+					try {
+						CloudBlockBlob blob = container.getBlockBlobReference(hashString);
+						if (!blob.exists())
+							throw new IOException("blob does not exist " + hashString);
+						else {
+							ByteArrayOutputStream out = new ByteArrayOutputStream(
+									(int) blob.getProperties().getLength());
+							blob.download(out);
+							byte[] data = out.toByteArray();
+							blob.downloadAttributes();
+							HashMap<String, String> metaData = blob.getMetadata();
+							
+							if (metaData.containsKey("encrypt") 
+									&& metaData.get("encrypt").equalsIgnoreCase("true")) {
+								data = EncryptUtils.decrypt(data);
+							}
+							if (metaData.containsKey("compress")
+									&& metaData.get("compress").equalsIgnoreCase("true")) {
+								data = CompressionUtils.decompressZLIB(data);
+								
+							}
+							if (metaData.containsKey("scompress")
+									&& metaData.get("scompress").equalsIgnoreCase("true")) {
+								data = CompressionUtils.decompressSnappy(data);
+							}
+							return data;
+						}
+					} catch (Exception e) {
+						SDFSLogger.getLog()
+								.error("unable to fetch block [" + hashString + "]", e);
+						throw new IOException(e);
+					}
+				}
+			});
 
 	
 	public static boolean checkAuth(String awsAccessKey, String awsSecretKey) {
@@ -81,39 +128,17 @@ public class MAzureChunkStore implements AbstractChunkStore {
 
 	@Override
 	public byte[] getChunk(byte[] hash, long start, int len) throws IOException {
-		String hashString = this.getHashName(hash);
 		try {
-			CloudBlockBlob blob = container.getBlockBlobReference(hashString);
-			if (!blob.exists())
-				throw new IOException("blob does not exist " + hashString);
-			else {
-				ByteArrayOutputStream out = new ByteArrayOutputStream(
-						(int) blob.getProperties().getLength());
-				blob.download(out);
-				byte[] data = out.toByteArray();
-				blob.downloadAttributes();
-				HashMap<String, String> metaData = blob.getMetadata();
-				
-				if (metaData.containsKey("encrypt") 
-						&& metaData.get("encrypt").equalsIgnoreCase("true")) {
-					data = EncryptUtils.decrypt(data);
-				}
-				if (metaData.containsKey("compress")
-						&& metaData.get("compress").equalsIgnoreCase("true")) {
-					data = CompressionUtils.decompressZLIB(data);
-					
-				}
-				if (metaData.containsKey("scompress")
-						&& metaData.get("scompress").equalsIgnoreCase("true")) {
-					data = CompressionUtils.decompressSnappy(data);
-				}
-				return data;
+			
+			String hashString = this.getHashName(hash);
+			SDFSLogger.getLog().debug("getting hash " + hashString);
+			byte[] _bz = this.chunks.get(hashString);
+			byte[] bz = Arrays.clone(_bz);
+			return bz;
+			} catch (ExecutionException e) {
+				SDFSLogger.getLog().error("Unable to get block at " + start, e);
+				throw new IOException(e);
 			}
-		} catch (Exception e) {
-			SDFSLogger.getLog()
-					.error("unable to fetch block [" + hash + "]", e);
-			throw new IOException(e);
-		}
 
 	}
 
@@ -184,6 +209,7 @@ public class MAzureChunkStore implements AbstractChunkStore {
 			throws IOException {
 		String hashString = this.getHashName(hash);
 		try {
+			this.chunks.invalidate(hashString);
 			CloudBlockBlob blob = container.getBlockBlobReference(hashString);
 			if (blob.exists())
 				blob.delete();
@@ -241,7 +267,7 @@ public class MAzureChunkStore implements AbstractChunkStore {
 		account = CloudStorageAccount.parse(storageConnectionString);
 		serviceClient = account.createCloudBlobClient();
 		this.name = Main.cloudBucket;
-		container = serviceClient.getContainerReference("gettingstarted");
+		container = serviceClient.getContainerReference(this.name);
 		container.createIfNotExist();
 		this.compress = Main.cloudCompress;
 		this.encrypt = Main.chunkStoreEncryptionEnabled;

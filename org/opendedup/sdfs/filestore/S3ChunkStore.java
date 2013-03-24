@@ -5,8 +5,10 @@ import java.io.ByteArrayInputStream;
 
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.bouncycastle.util.Arrays;
 import org.jets3t.service.S3Service;
 import org.jets3t.service.ServiceException;
 import org.jets3t.service.impl.rest.httpclient.RestS3Service;
@@ -19,6 +21,10 @@ import org.opendedup.util.CompressionUtils;
 import org.opendedup.util.EncryptUtils;
 import org.opendedup.util.StringUtils;
 import org.w3c.dom.Element;
+
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 
 /**
  * 
@@ -38,8 +44,35 @@ public class S3ChunkStore implements AbstractChunkStore {
 	boolean encrypt = false;
 	private long currentLength = 0L;
 	private static final int pageSize = Main.chunkStorePageSize;
+	private int cacheSize = 10485760 / Main.CHUNK_LENGTH;
+	LoadingCache<String, byte []> chunks = CacheBuilder.newBuilder()
+			.maximumSize(cacheSize).concurrencyLevel(72)
+			.build(new CacheLoader<String, byte []>() {
+				public byte [] load(String hashString) throws IOException {
+					
+					RestS3Service s3Service = null;
+					try {
+						s3Service = pool.borrowObject();
+						S3Object obj = s3Service.getObject(name, hashString);
+						byte[] data = new byte[(int) obj.getContentLength()];
+						DataInputStream in = new DataInputStream(obj.getDataInputStream());
+						in.readFully(data);
+						obj.closeDataInputStream();
+						if (encrypt)
+							data = EncryptUtils.decrypt(data);
+						if (compress)
+							data = CompressionUtils.decompressZLIB(data);
+						return data;
+					} catch (Exception e) {
+						SDFSLogger.getLog()
+								.error("unable to fetch block [" + hashString + "]", e);
+						throw new IOException("unable to read " + hashString);
+					} finally {
+						pool.returnObject(s3Service);
+					}
+				}
+			});
 
-	// private static ReentrantLock lock = new ReentrantLock();
 
 	static {
 		try {
@@ -109,28 +142,15 @@ public class S3ChunkStore implements AbstractChunkStore {
 
 	@Override
 	public byte[] getChunk(byte[] hash, long start, int len) throws IOException {
-		String hashString = this.getHashName(hash);
-		RestS3Service s3Service = null;
 		try {
-			s3Service = pool.borrowObject();
-			S3Object obj = s3Service.getObject(this.name, hashString);
-			byte[] data = new byte[(int) obj.getContentLength()];
-			DataInputStream in = new DataInputStream(obj.getDataInputStream());
-			in.readFully(data);
-			obj.closeDataInputStream();
-			if (this.encrypt)
-				data = EncryptUtils.decrypt(data);
-			if (this.compress)
-				data = CompressionUtils.decompressZLIB(data);
-			return data;
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			SDFSLogger.getLog()
-					.error("unable to fetch block [" + hash + "]", e);
-			throw new IOException("unable to read " + hashString);
-		} finally {
-			pool.returnObject(s3Service);
-		}
+			String hashString = this.getHashName(hash);
+			byte[] _bz = this.chunks.get(hashString);
+			byte[] bz = Arrays.clone(_bz);
+			return bz;
+			} catch (ExecutionException e) {
+				SDFSLogger.getLog().error("Unable to get block at " + start, e);
+				throw new IOException(e);
+			}
 
 	}
 
@@ -210,6 +230,7 @@ public class S3ChunkStore implements AbstractChunkStore {
 			throws IOException {
 		String hashString = this.getHashName(hash);
 		RestS3Service s3Service = null;
+		this.chunks.invalidate(hashString);
 		try {
 			s3Service = pool.borrowObject();
 			s3Service.deleteObject(this.name, hashString);
