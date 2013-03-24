@@ -345,31 +345,8 @@ public class FileChunkStore implements AbstractChunkStore {
 	@Override
 	public boolean moveChunk(byte[] hash, long origLoc, long newLoc)
 			throws IOException {
-		if (this.closed)
-			throw new IOException("ChunkStore is closed");
-		byte[] buf = new byte[Main.chunkStorePageSize];
-		RandomAccessFile raf = new RandomAccessFile(f, "rw");
-		try {
-			raf.seek(origLoc);
-			raf.read(buf);
-			if (Main.preAllocateChunkStore && Arrays.areEqual(FREE, buf))
-				return false;
-			raf.seek(newLoc);
-			raf.write(buf);
-			if (!Main.preAllocateChunkStore
-					&& (origLoc + Main.chunkStorePageSize) == raf.length())
-				raf.setLength(origLoc);
-			return true;
-		} catch (Exception e) {
-			SDFSLogger.getLog().fatal(
-					"could not move data from [" + origLoc + "] to [" + newLoc
-							+ "]", e);
-			return false;
-		} finally {
-			raf.close();
-			raf = null;
-			buf = null;
-		}
+			throw new IOException("Not implemented");
+		
 	}
 
 	@Override

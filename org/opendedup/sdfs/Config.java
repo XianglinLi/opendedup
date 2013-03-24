@@ -87,14 +87,11 @@ public class Config {
 				Main.chunkStoreConfig = (Element) cbe.getElementsByTagName(
 						"extended-config").item(0);
 			}
-			Main.preAllocateChunkStore = Boolean.parseBoolean(cbe
-					.getAttribute("pre-allocate"));
+			
 			Main.chunkStoreAllocationSize = Long.parseLong(cbe
 					.getAttribute("allocation-size"));
 			Main.chunkStorePageSize = Integer.parseInt(cbe
 					.getAttribute("page-size"));
-			Main.chunkStoreReadAheadPages = Integer.parseInt(cbe
-					.getAttribute("read-ahead-pages"));
 			Main.gcChunksSchedule = cbe.getAttribute("chunk-gc-schedule");
 			if (cbe.hasAttribute("hash-size")) {
 				short hsz = Short.parseShort(cbe.getAttribute("hash-size"));
@@ -112,13 +109,6 @@ public class Config {
 			}
 			Main.evictionAge = Integer.parseInt(cbe
 					.getAttribute("eviction-age"));
-			if (cbe.hasAttribute("chunk-store-read-cache"))
-				;
-			Main.chunkStorePageCache = Integer.parseInt(cbe
-					.getAttribute("chunk-store-read-cache"));
-			if (cbe.hasAttribute("chunk-store-dirty-timeout"))
-				Main.chunkStoreDirtyCacheTimeout = Integer.parseInt(cbe
-						.getAttribute("chunk-store-dirty-timeout"));
 			if (cbe.hasAttribute("encrypt")) {
 				Main.chunkStoreEncryptionEnabled = Boolean.parseBoolean(cbe
 						.getAttribute("encrypt"));
@@ -129,6 +119,8 @@ public class Config {
 				Main.cloudCompress = Boolean.parseBoolean(cbe
 						.getAttribute("compress"));
 			}
+			if(cbe.hasAttribute("cache-size"))
+				Main.cacheSize = Integer.parseInt(cbe.getAttribute("cache-size"));
 			if (cbe.hasAttribute("max-repl-batch-sz"))
 				Main.MAX_REPL_BATCH_SZ = Integer.parseInt(cbe.getAttribute("max-repl-batch-sz"));
 			int awsSz = doc.getElementsByTagName("aws").getLength();
@@ -237,8 +229,6 @@ public class Config {
 		Main.multiReadTimeout = Integer.parseInt(cache
 				.getAttribute("multi-read-timeout"));
 		Main.blankHash = new byte[Main.CHUNK_LENGTH];
-		Main.systemReadCacheSize = Integer.parseInt(cache
-				.getAttribute("system-read-cache"));
 		Main.maxWriteBuffers = Integer.parseInt(cache
 				.getAttribute("max-file-write-buffers"));
 		Main.maxOpenFiles = Integer.parseInt(cache
@@ -289,6 +279,8 @@ public class Config {
 				Main.chunkStoreConfig = (Element) localChunkStore
 						.getElementsByTagName("extended-config").item(0);
 			}
+			if(localChunkStore.hasAttribute("cache-size"))
+				Main.cacheSize = Integer.parseInt(localChunkStore.getAttribute("cache-size"));
 			if (localChunkStore.hasAttribute("max-repl-batch-sz"))
 				Main.MAX_REPL_BATCH_SZ = Integer.parseInt(localChunkStore
 						.getAttribute("max-repl-batch-sz"));
@@ -302,10 +294,6 @@ public class Config {
 						.getAttribute("encryption-key");
 			}
 			Main.hashDBStore = localChunkStore.getAttribute("hash-db-store");
-			Main.preAllocateChunkStore = Boolean.parseBoolean(localChunkStore
-					.getAttribute("pre-allocate"));
-			Main.chunkStoreReadAheadPages = Integer.parseInt(localChunkStore
-					.getAttribute("read-ahead-pages"));
 			Element networkcs = (Element) doc.getElementsByTagName("network")
 					.item(0);
 			if (networkcs != null) {
