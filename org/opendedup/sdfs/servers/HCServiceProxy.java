@@ -297,7 +297,7 @@ public class HCServiceProxy {
 						break;
 					} else if (z > Main.multiReadTimeout) {
 						if (Main.multiReadTimeout > 0)
-							SDFSLogger.getLog().info(
+							SDFSLogger.getLog().debug(
 									"Timeout waiting for read " + hashStr);
 						readingBuffers.remove(hashStr);
 						break;

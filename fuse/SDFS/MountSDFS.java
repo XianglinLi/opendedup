@@ -160,7 +160,7 @@ public class MountSDFS {
 			fal.add(cmd.getOptionValue("o"));
 		} else {
 			fal.add("-o");
-			fal.add("direct_io,big_writes,allow_other,fsname=sdfs:"+volumeConfigFile+":"+ Main.sdfsCliPort);
+			fal.add("big_writes,allow_other,fsname=sdfs:"+volumeConfigFile+":"+ Main.sdfsCliPort);
 		}
 		try {
 			String[] sFal = new String[fal.size()];

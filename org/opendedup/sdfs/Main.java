@@ -85,7 +85,7 @@ public class Main {
 	/**
 	 * The Version of SDFS this is
 	 */
-	public static String version = "1.2.3";
+	public static String version = "1.2.5";
 
 	/**
 	 * The location where the actual blocks of deduplicated data will be
@@ -105,11 +105,7 @@ public class Main {
 
 	// public static String hashesDBClass =
 	// "com.opendedup.collections.FileBasedCSMap";
-	public static String hashesDBClass = "org.opendedup.collections.FileBa" +
-			"" +
-			"" +
-			"" +
-			"sedCSMap";
+	public static String hashesDBClass = "org.opendedup.collections.CSByteArrayLongMap";
 	/**
 	 * Future implementation of pluggable garbageCollector
 	 */

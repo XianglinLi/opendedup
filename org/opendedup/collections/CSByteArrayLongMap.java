@@ -295,7 +295,7 @@ public class CSByteArrayLongMap implements AbstractMap, AbstractHashesMap {
 						try {
 							cm = new ChunkData(raw);
 						} catch (Exception e) {
-							SDFSLogger.getLog().info("HashTable corrupt!");
+							SDFSLogger.getLog().warn("HashTable corrupt!");
 							corrupt = true;
 						}
 						if (!corrupt) {

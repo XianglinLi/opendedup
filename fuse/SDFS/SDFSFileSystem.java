@@ -404,7 +404,7 @@ public class SDFSFileSystem implements Filesystem3, XattrSupport {
 		try {
 			openSetter.setFh(this.getFileChannel(path, flags));
 		} catch (FuseException e) {
-			SDFSLogger.getLog().info("error while opening file", e);
+			SDFSLogger.getLog().error("error while opening file", e);
 			throw e;
 		} finally {
 		}
@@ -538,7 +538,7 @@ public class SDFSFileSystem implements Filesystem3, XattrSupport {
 
 		try {
 			File src = null;
-			SDFSLogger.getLog().info("symlink " + from + " to " + to);
+			SDFSLogger.getLog().error("symlink " + from + " to " + to);
 			if (from.startsWith(this.mountPoint)) {
 				from = from.substring(mountPoint.length());
 				this.resolvePath(from);

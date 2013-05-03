@@ -63,7 +63,7 @@ public class ImportArchiveCmd implements Runnable {
 							+ e.toString(), e);
 
 		} finally {
-			SDFSLogger.getLog().info("Exited Replication task [" + sc + "]");
+			SDFSLogger.getLog().debug("Exited Replication task [" + sc + "]");
 		}
 
 	}

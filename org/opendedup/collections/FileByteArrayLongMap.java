@@ -54,6 +54,9 @@ public class FileByteArrayLongMap implements AbstractShard {
 			throws IOException {
 		this.size = size;
 		this.path = path;
+		File posFile = new File(path + ".pos");
+		if(posFile.exists())
+			this.size = (int)(posFile.length()/8);
 	}
 
 	private ReentrantLock iterlock = new ReentrantLock();
@@ -524,7 +527,7 @@ public class FileByteArrayLongMap implements AbstractShard {
 	 * @see org.opendedup.collections.AbstractShard#put(byte[], long)
 	 */
 	@Override
-	public boolean put(byte[] key, long value) {
+	public boolean put(byte[] key, long value) throws IOException {
 		try {
 			this.hashlock.lock();
 			if (this.mapped.cardinality() >= size)
@@ -548,10 +551,7 @@ public class FileByteArrayLongMap implements AbstractShard {
 			// this.store.position(pos);
 			// this.store.put(storeID);
 			return pos > -1 ? true : false;
-		} catch (Exception e) {
-			SDFSLogger.getLog().fatal("error inserting record", e);
-			return false;
-		} finally {
+		}  finally {
 			this.hashlock.unlock();
 		}
 	}
