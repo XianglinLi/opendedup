@@ -314,12 +314,12 @@ public class MetaFileStore {
 	 * closes the jdbm database.
 	 */
 	public static void close() {
-		SDFSLogger.getLog().info("Closing metafilestore");
+		SDFSLogger.getLog().debug("Closing metafilestore");
 		try {
 			commit();
 		} catch (Exception e) {
 		}
-		SDFSLogger.getLog().info("metafilestore closed");
+		SDFSLogger.getLog().debug("metafilestore closed");
 	}
 
 }

@@ -113,7 +113,7 @@ public class ArchiveOutCmd implements Runnable {
 
 		} finally {
 			DeleteDir.deleteDirectory(nf);
-			SDFSLogger.getLog().info("Exited Replication task [" + sc + "]");
+			SDFSLogger.getLog().debug("Exited Replication task [" + sc + "]");
 		}
 
 	}

@@ -236,7 +236,7 @@ public class DedupFileChannel {
 						buf.get(b);
 					} catch (java.nio.BufferUnderflowException e) {
 						buf.get(b, 0, buf.capacity() - buf.position());
-						SDFSLogger.getLog().info(
+						SDFSLogger.getLog().debug(
 								"ss buffer underflow writing "
 										+ (buf.capacity() - buf.position())
 										+ " instead of " + bytesLeft);
@@ -266,7 +266,7 @@ public class DedupFileChannel {
 						buf.get(b);
 					} catch (java.nio.BufferUnderflowException e) {
 						buf.get(b, 0, buf.capacity() - buf.position());
-						SDFSLogger.getLog().info(
+						SDFSLogger.getLog().debug(
 								"buffer underflow getting "
 										+ (buf.capacity() - buf.position())
 										+ " instead of " + _len);
@@ -439,7 +439,7 @@ public class DedupFileChannel {
 						} catch (BufferClosedException e) {
 							_rb = null;
 							readBuffer = df.getReadBuffer(currentLocation);
-							SDFSLogger.getLog().info("trying to read again");
+							SDFSLogger.getLog().debug("trying to read again");
 						}
 					}
 					int startPos = (int) (currentLocation - readBuffer

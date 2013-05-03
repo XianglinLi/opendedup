@@ -19,7 +19,7 @@ public class ManualGC {
 		return clearChunksMills((long)minutes * 60 *1000);
 	}
 	
-	public static long clearChunksMills(long milliseconds) throws InterruptedException, IOException {
+	public static synchronized long clearChunksMills(long milliseconds) throws InterruptedException, IOException {
 		WriteLock l = GCMain.gclock.writeLock();
 		l.lock();
 			try {

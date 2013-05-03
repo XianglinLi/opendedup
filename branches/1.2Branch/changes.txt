@@ -8,6 +8,7 @@ Version 1.2.3
 	* Better file level locking under concurrent IO should allow for lower latency multi write to the same file
 	* Added block caching for the S3,Azure, and FileChunkStore and defaults to 10MB. This should improve performance
 	  for multiple writes. This option can be configured during volume creation using the --chunk-store-read-cache option.
+	* Replaced the version of java that ships with SDFS.
 Version 1.2.1
 	Fixes:
 	* Free space calculation was causing problems with new volumes in 1.2.0 not being able to be more than .95 full.

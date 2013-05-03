@@ -479,7 +479,7 @@ public class MetaDataDedupFile implements java.io.Externalizable {
 	public void copyTo(String npath, boolean overwrite) throws IOException {
 		String snaptoPath = new File(npath + File.separator + "files")
 				.getPath() + File.separator;
-		SDFSLogger.getLog().info("Copying to " + snaptoPath);
+		SDFSLogger.getLog().debug("Copying to " + snaptoPath);
 		File f = new File(snaptoPath);
 		if (f.exists() && !overwrite)
 			throw new IOException("path exists [" + snaptoPath

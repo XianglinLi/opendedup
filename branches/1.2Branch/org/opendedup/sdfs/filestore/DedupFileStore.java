@@ -76,7 +76,6 @@ public class DedupFileStore {
 				DedupFile df = null;
 				if (mf.getDfGuid() == null) {
 					getDFLock.lock();
-					SDFSLogger.getLog().info("in create df for " + mf.getPath());
 					try {
 						if (mf.getDfGuid() == null) {
 							df = new SparseDedupFile(mf);
@@ -101,7 +100,7 @@ public class DedupFileStore {
 					if (df == null) {
 						getDFLock.lock();
 						try {
-							SDFSLogger.getLog().info("in add df for " + mf.getPath());
+							SDFSLogger.getLog().debug("in add df for " + mf.getPath());
 						df = openFile.get(mf.getDfGuid());
 						if (df == null) {
 							df = new SparseDedupFile(mf);
@@ -217,7 +216,7 @@ public class DedupFileStore {
 		if (openFileMonitor != null)
 			openFileMonitor.close();
 		Object[] dfs = getArray();
-		SDFSLogger.getLog().info("closing openfiles of size " + dfs.length);
+		SDFSLogger.getLog().debug("closing openfiles of size " + dfs.length);
 		for (int i = 0; i < dfs.length; i++) {
 			DedupFile df = (DedupFile) dfs[i];
 			try {

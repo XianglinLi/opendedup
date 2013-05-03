@@ -348,8 +348,7 @@ public class SparseDedupFile implements DedupFile {
 	}
 
 	@Override
-	public void writeCache(WritableCacheBuffer writeBuffer) throws IOException,
-			HashtableFullException, FileClosedException {
+	public void writeCache(WritableCacheBuffer writeBuffer) throws IOException, FileClosedException {
 		if (this.closed) {
 			throw new FileClosedException("file already closed");
 		}
@@ -406,6 +405,7 @@ public class SparseDedupFile implements DedupFile {
 						"unable to add chunk [" + writeBuffer.getHash()
 								+ "] at position "
 								+ writeBuffer.getFilePosition(), e);
+				throw new IOException(e);
 			} finally {
 
 			}

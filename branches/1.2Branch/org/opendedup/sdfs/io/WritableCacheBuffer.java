@@ -137,7 +137,7 @@ public class WritableCacheBuffer extends DedupChunk {
 			try {
 				buf = HCServiceProxy.fetchChunk(this.getHash());
 				if (buf.length > Main.CHUNK_LENGTH) {
-					SDFSLogger.getLog().info(
+					SDFSLogger.getLog().warn(
 							"Alert ! returned chunk to large " + buf.length
 									+ " > " + Main.CHUNK_LENGTH);
 				}
@@ -342,7 +342,7 @@ public class WritableCacheBuffer extends DedupChunk {
 				SDFSLogger.getLog().debug(
 						"####" + this.getFilePosition() + " not flushing");
 			else if (this.closed) {
-				SDFSLogger.getLog().info(
+				SDFSLogger.getLog().warn(
 						this.getFilePosition() + " already closed");
 			} else {
 				this.df.writeCache(this);
@@ -362,12 +362,12 @@ public class WritableCacheBuffer extends DedupChunk {
 		this.lock.lock();
 		try {
 			if (this.closed) {
-				SDFSLogger.getLog().info(
+				SDFSLogger.getLog().warn(
 						this.getFilePosition() + " already closed");
 				throw new BufferClosedException("Buffer Closed");
 			}
 			if (this.buf == null)
-				SDFSLogger.getLog().info(
+				SDFSLogger.getLog().warn(
 						this.getFilePosition() + " buffer is null");
 			return this.buf;
 		} finally {
@@ -398,7 +398,7 @@ public class WritableCacheBuffer extends DedupChunk {
 					raf.close();
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
-					SDFSLogger.getLog().info(
+					SDFSLogger.getLog().warn(
 							"error while destroying write buffer ", e);
 				}
 			} catch (Exception e) {
